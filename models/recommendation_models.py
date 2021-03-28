@@ -77,7 +77,7 @@ class Transformer(nn.Module):
         self.num_teams = 3  # [0:CLS, 1:BLUE, 2:RED]
         self.num_users = len(categorical_ids['user'])
         self.num_items = len(categorical_ids['champion'])
-        self.num_lanes = len(categorical_ids['lane'])
+        self.num_lanes = len(categorical_ids['lane']) + 1 # TODO: remove +1 after re-processing
         self.num_version = len(categorical_ids['version'])
         self.num_position = 11  # [[CLS] + 10]
 
@@ -100,6 +100,8 @@ class Transformer(nn.Module):
         self.policy_head = nn.Linear(self.embedding_dim, self.num_items)
         self.value_head = nn.Linear(self.embedding_dim, 1)
 
+        self.init_weights(init_range=self.args.weight_init_range)
+
     def forward(self, x):
         team_batch, ban_batch, user_batch, item_batch, lane_batch, version_batch, order_batch = x
         N, S = team_batch.shape
@@ -117,6 +119,7 @@ class Transformer(nn.Module):
 
         x = torch.cat([cls, board], 1)
         x = self.position_embedding(x)
+
         for layer in self.encoder:
             x = layer(x)
 

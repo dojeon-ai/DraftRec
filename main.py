@@ -75,16 +75,16 @@ if __name__ == "__main__":
         args = parser.parse_args()
         wandb.config.update(args)
         train_data = MatchDataset(args,
-                                  match_data['train'][:1000],
+                                  match_data['train'],
                                   categorical_ids)
         from train_recommendation_model import RecommendationModelTrainer as Trainer
     else:
         raise NotImplementedError
     val_data = MatchDataset(args,
-                            match_data['val'][:1000],
+                            match_data['val'],
                             categorical_ids)
     test_data = MatchDataset(args,
-                             match_data['test'][:1000],
+                             match_data['test'],
                              categorical_ids)
     del interaction_data
     del match_data

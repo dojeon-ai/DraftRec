@@ -1,6 +1,7 @@
 import tqdm
 import wandb
 import torch
+import copy
 import torch.nn.functional as F
 from common.metrics import *
 from models.recommendation_models import Transformer
@@ -36,12 +37,17 @@ class RecommendationModelTrainer():
                                      lr=self.args.lr)
         return optimizer
 
+    def _save_model(self, model_name, epoch):
+        model_path = wandb.run.dir + '/' + str(model_name)
+        torch.save({"state_dict": self.model.state_dict(),
+                    "epoch": epoch}, model_path)
+
     def train(self):
         args = self.args
         losses = []
         # evaluate the initial-run
         summary = self.evaluate(self.val_loader)
-        #wandb.log(summary, 0)
+        wandb.log(summary, 0)
         # start training
         for e in range(1, args.epochs+1):
             print('[Epoch:%d]' % e)
@@ -57,15 +63,14 @@ class RecommendationModelTrainer():
                 value_loss = self.value_criterion(v, win_batch.unsqueeze(1))
                 loss = policy_loss + value_loss
                 loss.backward()
-                losses.append(loss.item())
                 self.optimizer.step()
+                losses.append(loss.item())
 
-                import pdb
-                pdb.set_trace()
-
-            #if e % args.evaluate_every == 0:
-            #    summary = self.evaluate(self.val_loader, e)
-            #    wandb.log(summary, e)
+            if e % args.evaluate_every == 0:
+                summary = self.evaluate(self.val_loader)
+                summary['loss'] = np.mean(losses)
+                wandb.log(summary, e)
+                self._save_model('model.pt', e)
 
 
     def evaluate(self, loader):
@@ -76,6 +81,9 @@ class RecommendationModelTrainer():
             summary['HR@'+str(k)] = 0.0
             summary['NDCG@'+str(k)] = 0.0
         summary['MRR'] = 0.0
+        pi_metrics = []
+        for key in summary.keys():
+            pi_metrics.append(key)
         summary['ACC'] = 0.0
         summary['MAE'] = 0.0
         summary['MSE'] = 0.0
@@ -104,43 +112,30 @@ class RecommendationModelTrainer():
             pi_pred = pi_pred[valid_user]
             pi_true = pi_true[valid_user]
             for k in self.args.k_list:
-                summary['HR@' + str(k)] += recall_at_k(pi_true, pi_pred, k)
-                summary['NDCG@' + str(k)] += ndcg_at_k(pi_true, pi_pred, k)
-            summary['MRR'] = average_precision_at_k(pi_true, pi_pred, pi_true.shape[1])
+                summary['HR@' + str(k)] += recall_at_k(pi_true, pi_pred, k) * np.sum(valid_user)
+                summary['NDCG@' + str(k)] += ndcg_at_k(pi_true, pi_pred, k) * np.sum(valid_user)
+            summary['MRR'] += average_precision_at_k(pi_true, pi_pred, pi_true.shape[1]) * np.sum(valid_user)
             num_evaluation += np.sum(valid_user)
 
             # For win-rate prediction, measure metrics of [s_1, .., s_T] and [s_T] separately
             order_batch = order_batch.cpu().numpy()
-            summary['ACC'] = np.mean((v_pred>=0.5) == v_true)
-            summary['MAE'] = np.mean(np.abs(v_pred - v_true))
-            summary['MSE'] = np.mean(np.square(v_pred - v_true))
+            summary['ACC'] += np.sum((v_pred >= 0.5) == v_true)
+            summary['MAE'] += np.sum(np.abs(v_pred - v_true))
+            summary['MSE'] += np.sum(np.square(v_pred - v_true))
 
             last_board = (order_batch == 9)
             v_pred = v_pred[last_board]
             v_true = v_true[last_board]
-            summary['ACC'] = np.mean((v_pred>=0.5) == v_true)
-            summary['MAE'] = np.mean(np.abs(v_pred - v_true))
-            summary['MSE'] = np.mean(np.square(v_pred - v_true))
+            summary['ACC-LAST'] += np.sum((v_pred >= 0.5) == v_true)
+            summary['MAE-LAST'] += np.sum(np.abs(v_pred - v_true))
+            summary['MSE-LAST'] += np.sum(np.square(v_pred - v_true))
 
-
-
-
-            import pdb
-            pdb.set_trace()
-
-            """
-            user_batch, item_batch, _ = y_batch
-            for idx in range(len(user_batch)):
-                user = int(user_batch[idx].item())
-                # only test for the valid user in the training-set
-                if user != UNK:
-                    item = int(item_batch[idx].item())
-                    single_summary = self._evaluate_single(user, item)
-                    for metric, value in single_summary.items():
-                        summary[metric] += value
-                    num_evaluation += 1
-            """
         for metric, value in summary.items():
-            summary[metric] = (value / num_evaluation) * 100
+            if metric in pi_metrics:
+                summary[metric] = (value / num_evaluation) * 100
+            elif metric in ['ACC', 'MAE', 'MSE']:
+                summary[metric] = (value / len(loader.dataset))
+            elif metric in ['ACC-LAST', 'MAE-LAST', 'MSE-LAST']:
+                summary[metric] = (value / len(loader.dataset)) * 10
+
         return summary
-        pass
