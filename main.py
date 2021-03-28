@@ -12,7 +12,7 @@ from common.dataset import InteractionDataset, MatchDataset
 
 if __name__ == "__main__":
     warnings.filterwarnings('ignore')
-
+    # HI DONGYOON
     parser = argparse.ArgumentParser(description='arguments for reward model')
     parser.add_argument('--exp_name', type=str, default='')
     parser.add_argument('--op', default='train_interaction', choices=['train_interaction', 'train_recommendation'])
