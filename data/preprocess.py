@@ -33,13 +33,15 @@ def init_dictionary():
     # Version dictionary
     version_to_idx = {}
     version_to_idx['UNK'] = 0
+    version_to_idx['MASK'] = 0
     # Lane dictionary
     lane_to_idx = {'UNK': 0,
-                   'TOP': 1,
-                   'JUNGLE': 2,
-                   'MIDDLE': 3,
-                   'DUO_CARRY': 4,
-                   'DUO_SUPPORT': 5}
+                   'MASK':1,
+                   'TOP': 2,
+                   'JUNGLE': 3,
+                   'MIDDLE': 4,
+                   'DUO_CARRY': 5,
+                   'DUO_SUPPORT': 6}
 
     categorical_ids['user'] = user_to_idx
     categorical_ids['interaction_per_user'] = {}

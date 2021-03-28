@@ -70,18 +70,20 @@ class EncoderLayer(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, args, categorical_ids):
+    def __init__(self, args, categorical_ids, device):
         super(Transformer, self).__init__()
         self.args = args
-        self.num_teams = 3  # [CLS, BLUE, RED]
+        self.device = device
+        self.num_teams = 3  # [0:CLS, 1:BLUE, 2:RED]
         self.num_users = len(categorical_ids['user'])
         self.num_items = len(categorical_ids['champion'])
         self.num_lanes = len(categorical_ids['lane'])
         self.num_version = len(categorical_ids['version'])
-        self.num_position = 10
+        self.num_position = 11  # [[CLS] + 10]
 
         self.embedding_dim = args.embedding_dim
         self.team_embedding = nn.Embedding(self.num_teams, self.embedding_dim)
+        self.ban_embedding = nn.Embedding(self.num_items, self.embedding_dim)
         self.user_embedding = nn.Embedding(self.num_users, self.embedding_dim)
         self.item_embedding = nn.Embedding(self.num_items, self.embedding_dim)
         self.lane_embedding = nn.Embedding(self.num_lanes, self.embedding_dim)
@@ -95,33 +97,34 @@ class Transformer(nn.Module):
                                         self.args.num_heads,
                                         self.args.dropout))
         self.encoder = nn.ModuleList(encoder)
+        self.policy_head = nn.Linear(self.embedding_dim, self.num_items)
+        self.value_head = nn.Linear(self.embedding_dim, 1)
 
     def forward(self, x):
-        team, ban, user, item, lane, version, order = x
+        team_batch, ban_batch, user_batch, item_batch, lane_batch, version_batch, order_batch = x
+        N, S = team_batch.shape
 
-        team = self.team_embedding(team.long())
-        user = self.user_embedding(user.long())
-        item = self.item_embedding(item.long())
-        lane = self.lane_embedding(lane.long())
+        cls = self.team_embedding(torch.zeros(N, 1).long().to(self.device))
+        version = self.version_embedding(version_batch.unsqueeze(1).long().to(self.device))
+        cls = cls + version
 
-        x = team + user + item + lane
+        team = self.team_embedding(team_batch.long())
+        ban = self.ban_embedding(ban_batch.long())
+        user = self.user_embedding(user_batch.long())
+        item = self.item_embedding(item_batch.long())
+        lane = self.lane_embedding(lane_batch.long())
+        board = team + ban + user + item + lane
+
+        x = torch.cat([cls, board], 1)
         x = self.position_embedding(x)
-        # TODO: append CLS token
-
         for layer in self.encoder:
             x = layer(x)
 
+        pi_logit = self.policy_head(x[torch.arange(N), order_batch.long()+1, :])
+        pi_mask = torch.zeros_like(pi_logit).to(self.device)
+        pi_mask.scatter_(1, ban_batch.long(), -np.inf)
+        pi_logit = pi_logit + pi_mask
+        pi = F.log_softmax(pi_logit, dim=1)  # log-probability is passed to NLL-Loss
+        v = self.value_head(x[:, 0, :])  # logit is passed to BCE Loss
 
-        import pdb
-        pdb.set_trace()
-        #position = self.position_embedding
-
-        #input =
-
-
-
-        import pdb
-        pdb.set_trace()
-        pass
-
-
+        return pi, v

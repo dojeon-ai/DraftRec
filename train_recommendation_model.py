@@ -19,15 +19,17 @@ class RecommendationModelTrainer():
         self.num_items = len(self.categorical_ids['champion'])
 
         self.model = self._initialize_model()
-        self.criterion = self._initialize_criterion()
+        self.policy_criterion, self.value_criterion = self._initialize_criterion()
         self.optimizer = self._initialize_optimizer()
 
     def _initialize_model(self):
-        model = Transformer(self.args, self.categorical_ids)
+        model = Transformer(self.args, self.categorical_ids, self.device)
         return model.to(self.device)
 
     def _initialize_criterion(self):
-        pass
+        policy_criterion = torch.nn.NLLLoss().to(self.device)
+        value_criterion = torch.nn.BCEWithLogitsLoss().to(self.device)
+        return policy_criterion, value_criterion
 
     def _initialize_optimizer(self):
         optimizer = torch.optim.Adam(self.model.parameters(),
@@ -38,7 +40,7 @@ class RecommendationModelTrainer():
         args = self.args
         losses = []
         # evaluate the initial-run
-        #summary = self.evaluate(self.val_loader)
+        summary = self.evaluate(self.val_loader)
         #wandb.log(summary, 0)
         # start training
         for e in range(1, args.epochs+1):
@@ -47,13 +49,19 @@ class RecommendationModelTrainer():
             for x_batch, y_batch in tqdm.tqdm(self.train_loader):
                 self.optimizer.zero_grad()
                 x_batch = [feature.to(self.device) for feature in x_batch]
-                #y_batch = y_batch.to(self.device).unsqueeze(1)
+                y_batch = [feature.to(self.device) for feature in y_batch]
+                _, item_batch, win_batch = y_batch
 
-                logits = self.model(x_batch)
-                #loss = self.criterion(logits, y_batch)
-                #loss.backward()
-                #losses.append(loss.item())
-                #self.optimizer.step()
+                pi, v = self.model(x_batch)
+                policy_loss = self.policy_criterion(pi, item_batch.long())
+                value_loss = self.value_criterion(v, win_batch.unsqueeze(1))
+                loss = policy_loss + value_loss
+                loss.backward()
+                losses.append(loss.item())
+                self.optimizer.step()
+
+                import pdb
+                pdb.set_trace()
 
             #if e % args.evaluate_every == 0:
             #    summary = self.evaluate(self.val_loader, e)
@@ -61,4 +69,78 @@ class RecommendationModelTrainer():
 
 
     def evaluate(self, loader):
+        self.model.eval()
+        # initialize metrics
+        summary = {}
+        for k in self.args.k_list:
+            summary['HR@'+str(k)] = 0.0
+            summary['NDCG@'+str(k)] = 0.0
+        summary['MRR'] = 0.0
+        summary['ACC'] = 0.0
+        summary['MAE'] = 0.0
+        summary['MSE'] = 0.0
+        summary['ACC-LAST'] = 0.0
+        summary['MAE-LAST'] = 0.0
+        summary['MSE-LAST'] = 0.0
+
+        # measure metrics
+        UNK = 0
+        num_evaluation = 0
+        for x_batch, y_batch in tqdm.tqdm(loader):
+            x_batch = [feature.to(self.device) for feature in x_batch]
+            y_batch = [feature.to(self.device) for feature in y_batch]
+            _, _, _, _, _, _, order_batch = x_batch
+            user_batch, item_batch, win_batch = y_batch
+
+            pi_true = torch.eye(self.num_items)[item_batch.long()].detach().cpu().numpy()
+            v_true = win_batch.cpu().numpy()
+            pi, v = self.model(x_batch)
+            pi_pred = torch.exp(pi).detach().cpu().numpy()
+            v_pred = F.sigmoid(v).squeeze(1).detach().cpu().numpy()
+
+            # For recommendation, only test for the valid user in the training-set
+            user_batch = user_batch.cpu().numpy()
+            valid_user = (user_batch != UNK)
+            pi_pred = pi_pred[valid_user]
+            pi_true = pi_true[valid_user]
+            for k in self.args.k_list:
+                summary['HR@' + str(k)] += recall_at_k(pi_true, pi_pred, k)
+                summary['NDCG@' + str(k)] += ndcg_at_k(pi_true, pi_pred, k)
+            summary['MRR'] = average_precision_at_k(pi_true, pi_pred, pi_true.shape[1])
+            num_evaluation += np.sum(valid_user)
+
+            # For win-rate prediction, measure metrics of [s_1, .., s_T] and [s_T] separately
+            order_batch = order_batch.cpu().numpy()
+            summary['ACC'] = np.mean((v_pred>=0.5) == v_true)
+            summary['MAE'] = np.mean(np.abs(v_pred - v_true))
+            summary['MSE'] = np.mean(np.square(v_pred - v_true))
+
+            last_board = (order_batch == 9)
+            v_pred = v_pred[last_board]
+            v_true = v_true[last_board]
+            summary['ACC'] = np.mean((v_pred>=0.5) == v_true)
+            summary['MAE'] = np.mean(np.abs(v_pred - v_true))
+            summary['MSE'] = np.mean(np.square(v_pred - v_true))
+
+
+
+
+            import pdb
+            pdb.set_trace()
+
+            """
+            user_batch, item_batch, _ = y_batch
+            for idx in range(len(user_batch)):
+                user = int(user_batch[idx].item())
+                # only test for the valid user in the training-set
+                if user != UNK:
+                    item = int(item_batch[idx].item())
+                    single_summary = self._evaluate_single(user, item)
+                    for metric, value in single_summary.items():
+                        summary[metric] += value
+                    num_evaluation += 1
+            """
+        for metric, value in summary.items():
+            summary[metric] = (value / num_evaluation) * 100
+        return summary
         pass

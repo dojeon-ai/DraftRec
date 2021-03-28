@@ -81,10 +81,10 @@ if __name__ == "__main__":
     else:
         raise NotImplementedError
     val_data = MatchDataset(args,
-                            match_data['val'],
+                            match_data['val'][:1000],
                             categorical_ids)
     test_data = MatchDataset(args,
-                             match_data['test'],
+                             match_data['test'][:1000],
                              categorical_ids)
     del interaction_data
     del match_data

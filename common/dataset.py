@@ -101,6 +101,8 @@ class MatchDataset(Dataset):
                 item_input.append(match['User'+str(order)+'_champion'])
                 lane_input.append(match['User' + str(order) + '_lane'])
 
+            # TODO: after re-processing ,remove below function
+            lane_input = self._append_mask_token_in_lane(lane_input)
             MASK = 1
             for i, order in enumerate(pick_order):
                 # assign user & item
@@ -116,8 +118,10 @@ class MatchDataset(Dataset):
 
                 # blue-team cannot view the 'lane' and 'user' of the red-team and vice-versa
                 team_mask = (np.array(team_input) == team).astype(float)
-                lane_inputs.append(np.array(lane_input) * team_mask)
-                user_inputs.append(np.array(user_input) * team_mask)
+                #lane_inputs.append(np.array(lane_input) * team_mask)
+                #user_inputs.append(np.array(user_input) * team_mask)
+                lane_inputs.append(np.where((team_mask == 1), np.array(lane_input), MASK))
+                user_inputs.append(np.where((team_mask == 1), np.array(user_input), MASK))
 
                 # current-item should be masked
                 cur_item_input = item_input.copy()
@@ -135,6 +139,12 @@ class MatchDataset(Dataset):
         return np.column_stack((team_inputs, ban_inputs, user_inputs, item_inputs, lane_inputs,
                                 version_inputs, order_inputs,
                                 user_labels, item_labels, win_labels))
+
+    # TODO: needs to be removed
+    def _append_mask_token_in_lane(self, lane_input):
+        lane_input = np.array(lane_input) + 1
+        lane_input = np.where(lane_input == 1, 0, lane_input)
+        return lane_input
 
     def __len__(self):
         return len(self.data)

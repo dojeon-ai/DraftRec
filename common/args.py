@@ -37,12 +37,15 @@ def add_interaction_arguments(parser):
 
 def add_recommendation_arguments(parser):
     # model
-    parser.add_argument('--embedding_dim', type=int, default=300)
-    parser.add_argument('--num_hidden_layers', type=int, default=2)
-    parser.add_argument('--num_heads', type=int, default=1)
-    parser.add_argument('--dropout', type=float, default=0.1)
+    parser.add_argument('--embedding_dim', type=int, default=300)  # [64, 256]
+    parser.add_argument('--num_hidden_layers', type=int, default=2)  # [2]
+    parser.add_argument('--num_heads', type=int, default=1)  # [2]
+    parser.add_argument('--dropout', type=float, default=0.1)  # [0.0, 0.1, 0.2]
     # train
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--epochs', type=int, default=50)
+    # eval
+    parser.add_argument('--k_list', type=str2list, default=[1, 5, 10])
+    parser.add_argument('--evaluate_every', type=int, default=5)
     return parser
