@@ -117,6 +117,6 @@ class InteractionModelTrainer():
         for k in self.args.k_list:
             summary['HR@'+str(k)] = recall_at_k(y_true, y_pred, k)
             summary['NDCG@'+str(k)] = ndcg_at_k(y_true, y_pred, k)
-        summary['MRR'] = average_precision_at_k(y_true, y_pred, len(y_true))
+        summary['MRR'] = average_precision_at_k(y_true, y_pred, y_true.shape[1])
 
         return summary
