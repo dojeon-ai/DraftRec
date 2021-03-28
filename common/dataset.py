@@ -118,8 +118,6 @@ class MatchDataset(Dataset):
 
                 # blue-team cannot view the 'lane' and 'user' of the red-team and vice-versa
                 team_mask = (np.array(team_input) == team).astype(float)
-                #lane_inputs.append(np.array(lane_input) * team_mask)
-                #user_inputs.append(np.array(user_input) * team_mask)
                 lane_inputs.append(np.where((team_mask == 1), np.array(lane_input), MASK))
                 user_inputs.append(np.where((team_mask == 1), np.array(user_input), MASK))
 
