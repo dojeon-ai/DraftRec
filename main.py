@@ -17,7 +17,7 @@ if __name__ == "__main__":
     parser.add_argument('--exp_name', type=str, default='')
     parser.add_argument('--op', default='train_interaction', choices=['train_interaction', 'train_recommendation'])
     #parser.add_argument('--data_dir', type=str, default='./data')
-    #parser.add_argument('--data_dir', type=str, default='/home/nas1_userC/hojoonlee/draftRec/data')
+    parser.add_argument('--data_dir', type=str, default='/home/nas1_userC/hojoonlee/draftRec/data')
     parser.add_argument('--interaction_path', type=str, default='/interaction_data.pickle')
     parser.add_argument('--match_path', type=str, default='/match_data.pickle')
     parser.add_argument('--dict_path', type=str, default='/categorical_ids.pickle')
