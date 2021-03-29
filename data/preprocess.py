@@ -33,7 +33,7 @@ def init_dictionary():
     # Version dictionary
     version_to_idx = {}
     version_to_idx['UNK'] = 0
-    version_to_idx['MASK'] = 0
+    version_to_idx['MASK'] = 1
     # Lane dictionary
     lane_to_idx = {'UNK': 0,
                    'MASK':1,

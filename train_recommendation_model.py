@@ -4,6 +4,7 @@ import torch
 import copy
 import torch.nn.functional as F
 from common.metrics import *
+from common.train_utils import init_transformer_weights
 from models.recommendation_models import Transformer
 
 
@@ -25,6 +26,8 @@ class RecommendationModelTrainer():
 
     def _initialize_model(self):
         model = Transformer(self.args, self.categorical_ids, self.device)
+        model.apply(init_transformer_weights)
+        model.value_head = init_transformer_weights(model.value_head, init_range=1.0)
         return model.to(self.device)
 
     def _initialize_criterion(self):
@@ -34,7 +37,8 @@ class RecommendationModelTrainer():
 
     def _initialize_optimizer(self):
         optimizer = torch.optim.Adam(self.model.parameters(),
-                                     lr=self.args.lr)
+                                     lr=self.args.lr,
+                                     weight_decay=self. args.weight_decay)
         return optimizer
 
     def _save_model(self, model_name, epoch):
@@ -44,7 +48,8 @@ class RecommendationModelTrainer():
 
     def train(self):
         args = self.args
-        losses = []
+        policy_losses = []
+        value_losses = []
         # evaluate the initial-run
         summary = self.evaluate(self.val_loader)
         wandb.log(summary, 0)
@@ -57,18 +62,19 @@ class RecommendationModelTrainer():
                 x_batch = [feature.to(self.device) for feature in x_batch]
                 y_batch = [feature.to(self.device) for feature in y_batch]
                 _, item_batch, win_batch = y_batch
-
                 pi, v = self.model(x_batch)
                 policy_loss = self.policy_criterion(pi, item_batch.long())
-                value_loss = self.value_criterion(v, win_batch.unsqueeze(1))
+                value_loss = self.value_criterion(v, win_batch.float().unsqueeze(1))
                 loss = policy_loss + value_loss
                 loss.backward()
                 self.optimizer.step()
-                losses.append(loss.item())
+                policy_losses.append(policy_loss.item())
+                value_losses.append(value_loss.item())
 
             if e % args.evaluate_every == 0:
                 summary = self.evaluate(self.val_loader)
-                summary['loss'] = np.mean(losses)
+                summary['policy_loss'] = np.mean(policy_losses)
+                summary['value_loss'] = np.mean(value_losses)
                 wandb.log(summary, e)
                 self._save_model('model.pt', e)
 

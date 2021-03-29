@@ -37,8 +37,9 @@ class FeedForward(nn.Module):
         :return x: type:(torch.Tensor) shape:(S, N, I:input_dim)
         """
         S, N, I = x.shape
-        x = self.w2(F.relu(self.w1(x.view(S*N, I)))).view(S, N, I)
+        x = self.w1(x.view(S*N, I))
         x = self.dropout(x)
+        x = self.w2(x).view(S, N, I)
         return x
 
 
@@ -100,8 +101,6 @@ class Transformer(nn.Module):
         self.policy_head = nn.Linear(self.embedding_dim, self.num_items)
         self.value_head = nn.Linear(self.embedding_dim, 1)
 
-        self.init_weights(init_range=self.args.weight_init_range)
-
     def forward(self, x):
         team_batch, ban_batch, user_batch, item_batch, lane_batch, version_batch, order_batch = x
         N, S = team_batch.shape
@@ -119,15 +118,16 @@ class Transformer(nn.Module):
 
         x = torch.cat([cls, board], 1)
         x = self.position_embedding(x)
-
+        x = x.permute(1, 0, 2)
         for layer in self.encoder:
             x = layer(x)
+        x = x.permute(1, 0, 2)
 
         pi_logit = self.policy_head(x[torch.arange(N), order_batch.long()+1, :])
         pi_mask = torch.zeros_like(pi_logit).to(self.device)
         pi_mask.scatter_(1, ban_batch.long(), -np.inf)
         pi_logit = pi_logit + pi_mask
         pi = F.log_softmax(pi_logit, dim=1)  # log-probability is passed to NLL-Loss
-        v = self.value_head(x[:, 0, :])  # logit is passed to BCE Loss
+        v = self.value_head(x[:, 0, :])  # [0,1] in tanh
 
         return pi, v
