@@ -45,7 +45,7 @@ def add_recommendation_arguments(parser):
     parser.add_argument('--weight_decay', type=float, default=0.01)
     # train
     parser.add_argument('--batch_size', type=int, default=256)
-    parser.add_argument('--lr', type=float, default=0.00001)
+    parser.add_argument('--lr', type=float, default=0.0001)
     parser.add_argument('--epochs', type=int, default=100)
     # eval
     parser.add_argument('--k_list', type=str2list, default=[1, 5, 10])

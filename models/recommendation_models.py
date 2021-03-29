@@ -128,6 +128,6 @@ class Transformer(nn.Module):
         pi_mask.scatter_(1, ban_batch.long(), -np.inf)
         pi_logit = pi_logit + pi_mask
         pi = F.log_softmax(pi_logit, dim=1)  # log-probability is passed to NLL-Loss
-        v = self.value_head(x[:, 0, :])  # [0,1] in tanh
+        v = self.value_head(x[:, 0, :])   # logit is passed to BCE-Loss
 
         return pi, v

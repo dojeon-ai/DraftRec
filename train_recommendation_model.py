@@ -61,6 +61,7 @@ class RecommendationModelTrainer():
                 self.optimizer.zero_grad()
                 x_batch = [feature.to(self.device) for feature in x_batch]
                 y_batch = [feature.to(self.device) for feature in y_batch]
+                _, _, _, _, _, _, order_batch = x_batch
                 _, item_batch, win_batch = y_batch
                 pi, v = self.model(x_batch)
                 policy_loss = self.policy_criterion(pi, item_batch.long())
