@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from common.train_utils import GELU
 
 
 class PositionalEncoding(nn.Module):
@@ -25,46 +26,98 @@ class PositionalEncoding(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, input_dim, hidden_dim, dropout):
+    def __init__(self, embed_dim, dropout):
         super(FeedForward, self).__init__()
-        self.w1 = nn.Linear(input_dim, hidden_dim)
-        self.w2 = nn.Linear(hidden_dim, input_dim)
+        self.w1 = nn.Linear(embed_dim, embed_dim)
+        self.w2 = nn.Linear(embed_dim, embed_dim)
         self.dropout = nn.Dropout(dropout)
+        self.activation = GELU()
 
     def forward(self, x):
         """
-        :param x: type:(torch.Tensor) shape:(S:seq_len, N:batch_size, I:input_dim)
-        :return x: type:(torch.Tensor) shape:(S, N, I:input_dim)
+        :param x: type:(torch.Tensor) shape:(N:batch_size, S:seq_len, E:embed_dim)
+        :return x: type:(torch.Tensor) shape:(N, S, E:input_dim)
         """
-        S, N, I = x.shape
-        x = self.w1(x.view(S*N, I))
+        N, S, E = x.shape
+        x = x.reshape(N*S, E)
+        x = self.w1(x)
+        x = self.activation(x)
+        x = self.w2(x)
         x = self.dropout(x)
-        x = self.w2(x).view(S, N, I)
+        x = x.reshape(N, S, E)
         return x
 
 
-class EncoderLayer(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_heads, dropout):
-        super(EncoderLayer, self).__init__()
-        self.attention = nn.MultiheadAttention(embed_dim=input_dim,
-                                               num_heads=num_heads,
-                                               dropout=dropout)
-        self.norm1 = nn.LayerNorm(input_dim, eps=1e-6)
-        self.feed_forward = FeedForward(input_dim=input_dim,
-                                        hidden_dim=hidden_dim,
-                                        dropout=dropout)
-        self.norm2 = nn.LayerNorm(input_dim, eps=1e-6)
+class MultiHeadAttention(nn.Module):
+    def __init__(self, embed_dim, num_heads, dropout=0.1):
+        super(MultiHeadAttention, self).__init__()
+        self.num_heads = num_heads
+        self.d_k = embed_dim // num_heads
 
-    def forward(self, x):
+        self.w_qs = nn.Linear(embed_dim, embed_dim)
+        self.w_ks = nn.Linear(embed_dim, embed_dim)
+        self.w_vs = nn.Linear(embed_dim, embed_dim)
+        self.w_o = nn.Linear(embed_dim, embed_dim)
+
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+
+    def forward(self, q, k, v, attn_mask=None):
+        """
+        :param q: (N, S, E)
+        :param k: (N, S, E)
+        :param v: (N, S, E)
+        :param attn_mask: (N, S, S) (torch.bool)
+        :return:
+        """
+        N, S, E = q.shape
+        # Pass through pre-attention projection
+        q = self.w_qs(q.reshape(-1, E)).reshape(N, S, self.num_heads, self.d_k)
+        k = self.w_ks(k.reshape(-1, E)).reshape(N, S, self.num_heads, self.d_k)
+        v = self.w_vs(v.reshape(-1, E)).reshape(N, S, self.num_heads, self.d_k)
+
+        # Transpose to not attend different heads
+        q = q.permute(0, 2, 1, 3)
+        k = k.permute(0, 2, 1, 3)
+        v = v.permute(0, 2, 1, 3)
+
+        # Attention
+        attn_logits = torch.matmul(q, k.permute(0, 1, 3, 2)) / np.sqrt(self.d_k)  # (N, H, S, S)
+        if attn_mask is not None:
+            eps = 1e9
+            attn_logits = attn_logits.masked_fill(attn_mask.float().unsqueeze(1) == 1, -eps)
+        attn_weights = torch.exp(F.log_softmax(attn_logits, dim=-1))
+        attn_weights = self.dropout1(attn_weights)
+
+        o = torch.matmul(attn_weights, v)
+        o = o.permute(0, 2, 1, 3)
+        o = o.reshape(-1, E)
+        o = self.w_o(o).reshape(N, S, E)
+        o = self.dropout2(o)
+
+        return o, attn_weights
+
+
+class EncoderLayer(nn.Module):
+    def __init__(self, embed_dim, num_heads, dropout):
+        super(EncoderLayer, self).__init__()
+        self.attention = MultiHeadAttention(embed_dim=embed_dim,
+                                            num_heads=num_heads,
+                                            dropout=dropout)
+        self.norm1 = nn.LayerNorm(embed_dim, eps=1e-6)
+        self.feed_forward = FeedForward(embed_dim=embed_dim,
+                                        dropout=dropout)
+        self.norm2 = nn.LayerNorm(embed_dim, eps=1e-6)
+
+    def forward(self, x, attn_mask):
         """
         :param x: type:(torch.Tensor) shape:(S:seq_len, N:batch_size, I:input_dim)
         :return x: type:(torch.Tensor) shape:(S, N, I)
         """
-        y, attn_weights = self.attention(x, x, x)
+        y, attn_weights = self.attention(x, x, x, attn_mask=attn_mask)
         x = x+y
         x = self.norm1(x)
-
-        y = self.feed_forward(x)
+        x = self.feed_forward(x)
         x = x+y
         x = self.norm2(x)
         return x
@@ -90,11 +143,11 @@ class Transformer(nn.Module):
         self.lane_embedding = nn.Embedding(self.num_lanes, self.embedding_dim)
         self.version_embedding = nn.Embedding(self.num_version, self.embedding_dim)
         self.position_embedding = PositionalEncoding(self.num_position, self.embedding_dim)
+        self.norm = nn.LayerNorm(self.embedding_dim, eps=1e-6)
 
         encoder = []
-        for _ in range(self.args.num_hidden_layers-1):
+        for _ in range(self.args.num_hidden_layers):
             encoder.append(EncoderLayer(self.embedding_dim,
-                                        self.embedding_dim,
                                         self.args.num_heads,
                                         self.args.dropout))
         self.encoder = nn.ModuleList(encoder)
@@ -106,28 +159,33 @@ class Transformer(nn.Module):
         N, S = team_batch.shape
 
         cls = self.team_embedding(torch.zeros(N, 1).long().to(self.device))
-        version = self.version_embedding(version_batch.unsqueeze(1).long().to(self.device))
-        cls = cls + version
+        # version = self.version_embedding(version_batch.unsqueeze(1).long().to(self.device))
+        cls = cls #+ version
 
         team = self.team_embedding(team_batch.long())
-        ban = self.ban_embedding(ban_batch.long())
+        #ban = self.ban_embedding(ban_batch.long())
         user = self.user_embedding(user_batch.long())
         item = self.item_embedding(item_batch.long())
-        lane = self.lane_embedding(lane_batch.long())
-        board = team + ban + user + item + lane
+        # lane = self.lane_embedding(lane_batch.long())
+        #board = team + ban + user + item + lane
+        board = item + user
 
         x = torch.cat([cls, board], 1)
         x = self.position_embedding(x)
-        x = x.permute(1, 0, 2)
+        # x = self.norm(x)
+
+        attn_mask = (torch.arange(S+1).to(self.device)[None, :] <= (order_batch+1)[:, None]).float()
+        attn_mask = attn_mask.unsqueeze(2).matmul(attn_mask.unsqueeze(1)).bool()
+        attn_mask = ~attn_mask
+
         for layer in self.encoder:
-            x = layer(x)
-        x = x.permute(1, 0, 2)
+            x = layer(x, attn_mask)
 
         pi_logit = self.policy_head(x[torch.arange(N), order_batch.long()+1, :])
         pi_mask = torch.zeros_like(pi_logit).to(self.device)
         pi_mask.scatter_(1, ban_batch.long(), -np.inf)
         pi_logit = pi_logit + pi_mask
         pi = F.log_softmax(pi_logit, dim=1)  # log-probability is passed to NLL-Loss
-        v = self.value_head(x[:, 0, :])   # logit is passed to BCE-Loss
+        v = self.value_head(x[torch.arange(N), 0, :])   # logit is passed to BCE-Loss
 
         return pi, v

@@ -37,15 +37,18 @@ def add_interaction_arguments(parser):
 
 def add_recommendation_arguments(parser):
     # model
-    parser.add_argument('--embedding_dim', type=int, default=64)  # [64, 256]
-    parser.add_argument('--num_hidden_layers', type=int, default=2)  # [2]
-    parser.add_argument('--num_heads', type=int, default=2)  # [2]
+    parser.add_argument('--embedding_dim', type=int, default=128)  # [64, 256]
+    parser.add_argument('--num_hidden_layers', type=int, default=3)  # [2]
+    parser.add_argument('--num_heads', type=int, default=4)  # [2]
     parser.add_argument('--dropout', type=float, default=0.1)  # [0.0, 0.1, 0.2]
     parser.add_argument('--weight_init_range', type=float, default=0.02)
     parser.add_argument('--weight_decay', type=float, default=0.01)
+    parser.add_argument('--lmbda', type=float, default=0.0)
+    parser.add_argument('--value_start_epoch', type=float, default=10)
+    parser.add_argument('--clip_grad', type=float, default=5.0)
     # train
-    parser.add_argument('--batch_size', type=int, default=256)
-    parser.add_argument('--lr', type=float, default=0.0001)
+    parser.add_argument('--batch_size', type=int, default=50)
+    parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--epochs', type=int, default=100)
     # eval
     parser.add_argument('--k_list', type=str2list, default=[1, 5, 10])

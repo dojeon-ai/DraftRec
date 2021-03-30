@@ -122,9 +122,10 @@ class MatchDataset(Dataset):
                 user_inputs.append(np.where((team_mask == 1), np.array(user_input), MASK))
 
                 # current-item should be masked
-                cur_item_input = item_input.copy()
-                cur_item_input[i:] = np.array([MASK] * (len(pick_order) - i))
-                item_inputs.append(cur_item_input)
+                # cur_item_input = item_input.copy()
+                # cur_item_input[i:] = np.array([MASK] * (len(pick_order) - i))
+                # item_inputs.append(cur_item_input)
+                item_inputs.append(item_input)
 
                 # mask & labels
                 order_inputs.append(i)

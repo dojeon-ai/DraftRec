@@ -66,7 +66,7 @@ if __name__ == "__main__":
         args = parser.parse_args()
         wandb.config.update(args)
         train_data = InteractionDataset(args,
-                                        interaction_data['train'][:1000],
+                                        interaction_data['train'][:100],
                                         categorical_ids,
                                         is_train=True)
         from train_interaction_model import InteractionModelTrainer as Trainer
@@ -75,23 +75,23 @@ if __name__ == "__main__":
         args = parser.parse_args()
         wandb.config.update(args)
         train_data = MatchDataset(args,
-                                  match_data['train'],
+                                  match_data['train'][:100],
                                   categorical_ids)
         from train_recommendation_model import RecommendationModelTrainer as Trainer
     else:
         raise NotImplementedError
     val_data = MatchDataset(args,
-                            match_data['val'],
+                            match_data['val'][:1000],
                             categorical_ids)
     test_data = MatchDataset(args,
-                             match_data['test'],
+                             match_data['test'][:1000],
                              categorical_ids)
     del interaction_data
     del match_data
 
     train_loader = DataLoader(train_data,
                               batch_size=args.batch_size,
-                              shuffle=True,
+                              shuffle=False,
                               num_workers=args.num_workers)
     val_loader = DataLoader(val_data,
                             batch_size=args.batch_size,

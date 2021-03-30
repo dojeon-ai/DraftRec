@@ -22,24 +22,30 @@ class RecommendationModelTrainer():
 
         self.model = self._initialize_model()
         self.policy_criterion, self.value_criterion = self._initialize_criterion()
-        self.optimizer = self._initialize_optimizer()
+        self.optimizer, self.scheduler = self._initialize_optimizer()
 
     def _initialize_model(self):
         model = Transformer(self.args, self.categorical_ids, self.device)
         model.apply(init_transformer_weights)
-        model.value_head = init_transformer_weights(model.value_head, init_range=1.0)
+        #model.value_head = init_transformer_weights(model.value_head, init_range=1.0)
         return model.to(self.device)
 
     def _initialize_criterion(self):
         policy_criterion = torch.nn.NLLLoss().to(self.device)
         value_criterion = torch.nn.BCEWithLogitsLoss().to(self.device)
+
         return policy_criterion, value_criterion
 
     def _initialize_optimizer(self):
         optimizer = torch.optim.Adam(self.model.parameters(),
                                      lr=self.args.lr,
                                      weight_decay=self. args.weight_decay)
-        return optimizer
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,
+                                                        max_lr=self.args.lr,
+                                                        epochs=self.args.epochs,
+                                                        steps_per_epoch=len(self.train_loader),
+                                                        pct_start=0.2)
+        return optimizer, scheduler
 
     def _save_model(self, model_name, epoch):
         model_path = wandb.run.dir + '/' + str(model_name)
@@ -51,7 +57,8 @@ class RecommendationModelTrainer():
         policy_losses = []
         value_losses = []
         # evaluate the initial-run
-        summary = self.evaluate(self.val_loader)
+        #summary = self.evaluate(self.val_loader)
+        summary = self.evaluate(self.train_loader)
         wandb.log(summary, 0)
         # start training
         for e in range(1, args.epochs+1):
@@ -65,15 +72,18 @@ class RecommendationModelTrainer():
                 _, item_batch, win_batch = y_batch
                 pi, v = self.model(x_batch)
                 policy_loss = self.policy_criterion(pi, item_batch.long())
-                value_loss = self.value_criterion(v, win_batch.float().unsqueeze(1))
-                loss = policy_loss + value_loss
+                value_loss = self.value_criterion(v.squeeze(1), win_batch.float())
+                loss = (1-args.lmbda) * policy_loss + args.lmbda * value_loss
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), args.clip_grad)
                 self.optimizer.step()
+                self.scheduler.step()
                 policy_losses.append(policy_loss.item())
                 value_losses.append(value_loss.item())
 
             if e % args.evaluate_every == 0:
-                summary = self.evaluate(self.val_loader)
+                # summary = self.evaluate(self.val_loader)
+                summary = self.evaluate(self.train_loader)
                 summary['policy_loss'] = np.mean(policy_losses)
                 summary['value_loss'] = np.mean(value_losses)
                 wandb.log(summary, e)
@@ -109,6 +119,7 @@ class RecommendationModelTrainer():
 
             pi_true = torch.eye(self.num_items)[item_batch.long()].detach().cpu().numpy()
             v_true = win_batch.cpu().numpy()
+
             pi, v = self.model(x_batch)
             pi_pred = torch.exp(pi).detach().cpu().numpy()
             v_pred = F.sigmoid(v).squeeze(1).detach().cpu().numpy()
@@ -130,12 +141,14 @@ class RecommendationModelTrainer():
             summary['MAE'] += np.sum(np.abs(v_pred - v_true))
             summary['MSE'] += np.sum(np.square(v_pred - v_true))
 
+            """
             last_board = (order_batch == 9)
             v_pred = v_pred[last_board]
             v_true = v_true[last_board]
             summary['ACC-LAST'] += np.sum((v_pred >= 0.5) == v_true)
             summary['MAE-LAST'] += np.sum(np.abs(v_pred - v_true))
             summary['MSE-LAST'] += np.sum(np.square(v_pred - v_true))
+            """
 
         for metric, value in summary.items():
             if metric in pi_metrics:
