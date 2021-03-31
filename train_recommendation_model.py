@@ -26,7 +26,7 @@ class RecommendationModelTrainer():
 
     def _initialize_model(self):
         model = Transformer(self.args, self.categorical_ids, self.device)
-        model.apply(init_transformer_weights)
+        # model.apply(init_transformer_weights)
         #model.value_head = init_transformer_weights(model.value_head, init_range=1.0)
         return model.to(self.device)
 
@@ -57,8 +57,8 @@ class RecommendationModelTrainer():
         policy_losses = []
         value_losses = []
         # evaluate the initial-run
-        #summary = self.evaluate(self.val_loader)
-        summary = self.evaluate(self.train_loader)
+        summary = self.evaluate(self.val_loader)
+        # summary = self.evaluate(self.train_loader)
         wandb.log(summary, 0)
         # start training
         for e in range(1, args.epochs+1):
@@ -77,13 +77,13 @@ class RecommendationModelTrainer():
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), args.clip_grad)
                 self.optimizer.step()
-                self.scheduler.step()
+                # self.scheduler.step()
                 policy_losses.append(policy_loss.item())
                 value_losses.append(value_loss.item())
 
             if e % args.evaluate_every == 0:
-                # summary = self.evaluate(self.val_loader)
-                summary = self.evaluate(self.train_loader)
+                summary = self.evaluate(self.val_loader)
+                # summary = self.evaluate(self.train_loader)
                 summary['policy_loss'] = np.mean(policy_losses)
                 summary['value_loss'] = np.mean(value_losses)
                 wandb.log(summary, e)

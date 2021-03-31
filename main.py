@@ -75,7 +75,7 @@ if __name__ == "__main__":
         args = parser.parse_args()
         wandb.config.update(args)
         train_data = MatchDataset(args,
-                                  match_data['train'][:100],
+                                  match_data['train'][:1000],
                                   categorical_ids)
         from train_recommendation_model import RecommendationModelTrainer as Trainer
     else:

@@ -42,8 +42,8 @@ class FeedForward(nn.Module):
         x = x.reshape(N*S, E)
         x = self.w1(x)
         x = self.activation(x)
-        x = self.w2(x)
         x = self.dropout(x)
+        x = self.w2(x)
         x = x.reshape(N, S, E)
         return x
 
@@ -84,15 +84,14 @@ class MultiHeadAttention(nn.Module):
         # Attention
         attn_logits = torch.matmul(q, k.permute(0, 1, 3, 2)) / np.sqrt(self.d_k)  # (N, H, S, S)
         if attn_mask is not None:
-            eps = 1e9
-            attn_logits = attn_logits.masked_fill(attn_mask.float().unsqueeze(1) == 1, -eps)
+            attn_logits = attn_logits.masked_fill(attn_mask.float().unsqueeze(1) == 1, -1e9)
         attn_weights = torch.exp(F.log_softmax(attn_logits, dim=-1))
         attn_weights = self.dropout1(attn_weights)
 
         o = torch.matmul(attn_weights, v)
         o = o.permute(0, 2, 1, 3)
-        o = o.reshape(-1, E)
-        o = self.w_o(o).reshape(N, S, E)
+        o = o.reshape(N, S, E)
+        o = self.w_o(o)
         o = self.dropout2(o)
 
         return o, attn_weights
@@ -142,8 +141,8 @@ class Transformer(nn.Module):
         self.item_embedding = nn.Embedding(self.num_items, self.embedding_dim)
         self.lane_embedding = nn.Embedding(self.num_lanes, self.embedding_dim)
         self.version_embedding = nn.Embedding(self.num_version, self.embedding_dim)
-        self.position_embedding = PositionalEncoding(self.num_position, self.embedding_dim)
-        self.norm = nn.LayerNorm(self.embedding_dim, eps=1e-6)
+        #self.position_embedding = PositionalEncoding(self.num_position, self.embedding_dim)
+        self.position_embedding = nn.Embedding(self.num_position, self.embedding_dim)
 
         encoder = []
         for _ in range(self.args.num_hidden_layers):
@@ -171,8 +170,8 @@ class Transformer(nn.Module):
         board = item + user
 
         x = torch.cat([cls, board], 1)
-        x = self.position_embedding(x)
-        # x = self.norm(x)
+        position = torch.arange(S+1).repeat(N).reshape(N, (S+1)).to(self.device)
+        x = x + self.position_embedding(position)
 
         attn_mask = (torch.arange(S+1).to(self.device)[None, :] <= (order_batch+1)[:, None]).float()
         attn_mask = attn_mask.unsqueeze(2).matmul(attn_mask.unsqueeze(1)).bool()
