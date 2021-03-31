@@ -8,16 +8,17 @@ import torch
 import wandb
 from torch.utils.data import DataLoader
 from common.args import *
-from common.dataset import InteractionDataset, MatchDataset
+from common.dataset import InteractionDataset, MatchTrainDataset, MatchTestDataset
 
 if __name__ == "__main__":
+    np.set_printoptions(suppress=True)
     warnings.filterwarnings('ignore')
-    # HI DONGYOON
+
     parser = argparse.ArgumentParser(description='arguments for reward model')
     parser.add_argument('--exp_name', type=str, default='')
     parser.add_argument('--op', default='train_interaction', choices=['train_interaction', 'train_recommendation'])
-    #parser.add_argument('--data_dir', type=str, default='./data')
-    parser.add_argument('--data_dir', type=str, default='/home/nas1_userC/hojoonlee/draftRec/data')
+    parser.add_argument('--data_dir', type=str, default='./data')
+    #parser.add_argument('--data_dir', type=str, default='/home/nas1_userC/hojoonlee/draftRec/data')
     parser.add_argument('--interaction_path', type=str, default='/interaction_data.pickle')
     parser.add_argument('--match_path', type=str, default='/match_data.pickle')
     parser.add_argument('--dict_path', type=str, default='/categorical_ids.pickle')
@@ -74,28 +75,26 @@ if __name__ == "__main__":
         parser = add_recommendation_arguments(parser)
         args = parser.parse_args()
         wandb.config.update(args)
-        train_data = MatchDataset(args,
-<<<<<<< HEAD
-                                  match_data['train'][:1000],
-=======
-                                  match_data['train'][:100],
->>>>>>> 8db5f98deb7c6297a448fa19c8282f0cb980d78d
+        train_data = MatchTrainDataset(args,
+                                  match_data['train'][:10000],
                                   categorical_ids)
         from train_recommendation_model import RecommendationModelTrainer as Trainer
     else:
         raise NotImplementedError
-    val_data = MatchDataset(args,
-                            match_data['val'][:1000],
-                            categorical_ids)
-    test_data = MatchDataset(args,
-                             match_data['test'][:1000],
-                             categorical_ids)
+
+    val_data = MatchTestDataset(args,
+                                match_data['val'][:1000],
+                                categorical_ids)
+    test_data = MatchTestDataset(args,
+                                 match_data['test'][:1000],
+                                 categorical_ids)
+
     del interaction_data
     del match_data
 
     train_loader = DataLoader(train_data,
                               batch_size=args.batch_size,
-                              shuffle=False,
+                              shuffle=True,
                               num_workers=args.num_workers)
     val_loader = DataLoader(val_data,
                             batch_size=args.batch_size,

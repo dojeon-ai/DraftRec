@@ -24,30 +24,45 @@ def init_dictionary():
     categorical_ids = {}
     # User dictionary
     user_to_idx = {}
-    user_to_idx['UNK'] = 0
+    user_to_idx['PAD'] = 0
     user_to_idx['MASK'] = 1
+    user_to_idx['CLS'] = 2
+    user_to_idx['UNK'] = 3
     # Champion dictionary
     champion_to_idx = {}
-    champion_to_idx['UNK'] = 0
+    champion_to_idx['PAD'] = 0
     champion_to_idx['MASK'] = 1
+    champion_to_idx['CLS'] = 2
+    champion_to_idx['UNK'] = 3
     # Version dictionary
     version_to_idx = {}
-    version_to_idx['UNK'] = 0
+    version_to_idx['PAD'] = 0
     version_to_idx['MASK'] = 1
+    version_to_idx['CLS'] = 2
+    version_to_idx['UNK'] = 3
     # Lane dictionary
-    lane_to_idx = {'UNK': 0,
-                   'MASK':1,
+    lane_to_idx = {'PAD': 0,
+                   'MASK': 1,
+                   'CLS': 2,
+                   'UNK': 3,
                    'TOP': 2,
                    'JUNGLE': 3,
                    'MIDDLE': 4,
                    'DUO_CARRY': 5,
                    'DUO_SUPPORT': 6}
-
+    # Team dictionary
+    team_to_idx = {'PAD': 0,
+                   'MASK': 1,
+                   'CLS': 2,
+                   'UNK': 3,
+                   'BLUE': 4,
+                   'RED': 5}
     categorical_ids['user'] = user_to_idx
     categorical_ids['interaction_per_user'] = {}
     categorical_ids['champion'] = champion_to_idx
     categorical_ids['version'] = version_to_idx
     categorical_ids['lane'] = lane_to_idx
+    categorical_ids['team'] = team_to_idx
     return categorical_ids
 
 
@@ -97,6 +112,7 @@ def create_match_data(data, categorical_ids, columns):
     champion_to_idx = categorical_ids['champion']
     version_to_idx = categorical_ids['version']
     lane_to_idx = categorical_ids['lane']
+    team_to_idx = categorical_ids['team']
 
     # Initialize dataframe
     match_data = pd.DataFrame(index=data.index, columns=columns)
@@ -118,12 +134,14 @@ def create_match_data(data, categorical_ids, columns):
         match_data.loc[i, 'win'] = blue_team['win']
         user_cnt = 0
         for ban in blue_team['bans']:
+            match_data.loc[i, 'User' + str(user_cnt + 1) + '_team'] = team_to_idx['BLUE']
             if ban['championId'] in champion_to_idx:
                 match_data.loc[i, 'User'+str(user_cnt+1)+'_ban'] = champion_to_idx[ban['championId']]
             else:
                 match_data.loc[i, 'User'+str(user_cnt+1)+'_ban'] = champion_to_idx['UNK']
             user_cnt += 1
         for ban in red_team['bans']:
+            match_data.loc[i, 'User' + str(user_cnt + 1) + '_team'] = team_to_idx['RED']
             if ban['championId'] in champion_to_idx:
                 match_data.loc[i, 'User'+str(user_cnt+1)+'_ban'] = champion_to_idx[ban['championId']]
             else:
@@ -190,9 +208,9 @@ if __name__=='__main__':
     # Train: 20.11.12 ~ 21.02.09 / Val: 21.02.10 ~ 21.02.12 / Test: 21.02.13 ~ 21.02.15
     parser.add_argument('--train_end_time', type=float, default=1612882800000) # 21.02.10
     parser.add_argument('--val_end_time', type=float, default=1613142000000) # 21.02.13
-    parser.add_argument('--interaction_threshold', type=int, default=10)
+    parser.add_argument('--interaction_threshold', type=int, default=20)
     args = parser.parse_args()
-    file_list = glob.glob(args.data_dir + '*.csv')
+    file_list = glob.glob(args.data_dir + '*.csv')[10:15]
 
     # 1. Build dictionary
     print('[1. Start building dictionary]')
@@ -209,14 +227,14 @@ if __name__=='__main__':
         val_data = preprocessed_data[(preprocessed_data['gameCreation'] >= args.train_end_time)
                                     &((preprocessed_data['gameCreation'] < args.val_end_time))].reset_index(drop=True)
         test_data = preprocessed_data[preprocessed_data['gameCreation'] > args.val_end_time].reset_index(drop=True)
-        print('Num train data:', len(train_data))
-        print('Num val data:', len(val_data))
-        print('Num test data:', len(test_data))
+        #print('Num train data:', len(train_data))
+        #print('Num val data:', len(val_data))
+        #print('Num test data:', len(test_data))
         del preprocessed_data
 
         # 1.3 Append dictionary for designated file
         categorical_ids = append_item_to_dictionary(train_data, categorical_ids)
-        print('Finish appending dictionary')
+        #print('Finish appending dictionary')
         del train_data
         del val_data
         del test_data
@@ -235,6 +253,7 @@ if __name__=='__main__':
         columns.append('User'+str(participant_id)+'_lane')
         columns.append('User'+str(participant_id)+'_champion')
         columns.append('User'+str(participant_id)+'_ban')
+        columns.append('User'+str(participant_id)+'_team')
     train_match_data = pd.DataFrame(columns=columns)
     val_match_data = pd.DataFrame(columns=columns)
     test_match_data = pd.DataFrame(columns=columns)
