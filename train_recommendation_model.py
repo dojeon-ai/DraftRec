@@ -26,7 +26,11 @@ class RecommendationModelTrainer():
 
     def _initialize_model(self):
         model = Transformer(self.args, self.categorical_ids, self.device)
+<<<<<<< HEAD
         # model.apply(init_transformer_weights)
+=======
+        model.apply(init_transformer_weights)
+>>>>>>> 8db5f98deb7c6297a448fa19c8282f0cb980d78d
         #model.value_head = init_transformer_weights(model.value_head, init_range=1.0)
         return model.to(self.device)
 
