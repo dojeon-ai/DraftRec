@@ -26,6 +26,7 @@ if __name__ == "__main__":
     #parser.add_argument('--data_dir', type=str, default='/home/nas1_userC/hojoonlee/draftRec/data')
     parser.add_argument('--interaction_path', type=str, default='/interaction_data.pickle')
     parser.add_argument('--match_path', type=str, default='/match_data.pickle')
+    parser.add_argument('--user_history_path', type=str, default='/user_history_data.pickle')
     parser.add_argument('--dict_path', type=str, default='/categorical_ids.pickle')
     parser.add_argument('--num_workers', type=int, default=4, help="number of workers for dataloader")
     parser.add_argument('--gpu', type=int, default=-1, help='index of the gpu device to use (cpu if -1)')
@@ -66,6 +67,10 @@ if __name__ == "__main__":
     with open(match_data_path, 'rb') as f:
         match_data = pickle.load(f)
 
+    user_history_data_path = args.data_dir + args.user_history_path
+    with open(user_history_data_path, 'rb') as f:
+        user_history_data = pickle.load(f)
+
     dict_path = args.data_dir + args.dict_path
     with open(dict_path, 'rb') as f:
         categorical_ids = pickle.load(f)
@@ -88,8 +93,11 @@ if __name__ == "__main__":
     elif args.op == 'train_user_rec':
         parser = add_user_rec_arguments(parser)
         args = parser.parse_args()
+        wandb.config.update(args)
+        train_data = UserRecDataset(args,
+                                    user_history_data,
+                                    categorical_ids)
         from trainers.train_user_rec import UserRecTrainer as Trainer
-        raise NotImplementedError
 
     elif args.op == 'train_context_rec':
         parser = add_context_rec_arguments(parser)
