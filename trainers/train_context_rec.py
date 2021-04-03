@@ -1,14 +1,12 @@
 import tqdm
 import wandb
 import torch
-import copy
 import torch.nn.functional as F
 from common.metrics import *
-from common.train_utils import init_transformer_weights
-from models.recommendation_models import Transformer
+from models.context_rec_models import ContextRec
 
 
-class RecommendationModelTrainer():
+class ContextRecTrainer():
     def __init__(self, args, train_loader, val_loader, test_loader, categorical_ids, device):
         self.args = args
         self.train_loader = train_loader
@@ -25,8 +23,7 @@ class RecommendationModelTrainer():
         self.optimizer, self.scheduler = self._initialize_optimizer()
 
     def _initialize_model(self):
-        model = Transformer(self.args, self.categorical_ids, self.device)
-        # model.apply(init_transformer_weights)
+        model = ContextRec(self.args, self.categorical_ids, self.device)
         return model.to(self.device)
 
     def _initialize_criterion(self):
@@ -57,6 +54,8 @@ class RecommendationModelTrainer():
         value_losses = []
         # evaluate the initial-run
         summary = self.evaluate(self.val_loader)
+        best_HR1 = 0
+        best_epoch = 0
         wandb.log(summary, 0)
         # start training
         for e in range(1, args.epochs+1):
@@ -82,6 +81,10 @@ class RecommendationModelTrainer():
 
             if e % args.evaluate_every == 0:
                 summary = self.evaluate(self.val_loader)
+                if summary['HR@1'] > best_HR1:
+                    best_epoch = e
+                    best_HR1 = summary['HR@1']
+                summary['best_epoch'] = best_epoch
                 summary['policy_loss'] = np.mean(policy_losses)
                 summary['value_loss'] = np.mean(value_losses)
                 wandb.log(summary, e)

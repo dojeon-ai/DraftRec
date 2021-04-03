@@ -7,7 +7,7 @@ from pathlib import Path
 from common.metrics import *
 from models.interaction_models import Concat, Dot
 
-class InteractionModelTrainer():
+class InteractionTrainer():
     def __init__(self, args, train_loader, val_loader, test_loader, categorical_ids, device):
         self.args = args
         self.train_loader = train_loader

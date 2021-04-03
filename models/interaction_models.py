@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class Concat(nn.Module):
     def __init__(self, args, categorical_ids):
         super(Concat, self).__init__()

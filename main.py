@@ -8,7 +8,12 @@ import torch
 import wandb
 from torch.utils.data import DataLoader
 from common.args import *
-from common.dataset import InteractionDataset, MatchTrainDataset, MatchTestDataset
+# Dataset
+from dataset.interaction_dataset import InteractionDataset
+from dataset.user_rec_dataset import UserRecDataset
+from dataset.context_rec_dataset import ContextRecDataset
+from dataset.match_eval_dataset import MatchEvalDataset
+
 
 if __name__ == "__main__":
     np.set_printoptions(suppress=True)
@@ -16,7 +21,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='arguments for reward model')
     parser.add_argument('--exp_name', type=str, default='')
-    parser.add_argument('--op', default='train_interaction', choices=['train_interaction', 'train_recommendation'])
+    parser.add_argument('--op', default='train_context_rec', choices=['train_interaction', 'train_user_rec', 'train_context_rec'])
     parser.add_argument('--data_dir', type=str, default='./data')
     #parser.add_argument('--data_dir', type=str, default='/home/nas1_userC/hojoonlee/draftRec/data')
     parser.add_argument('--interaction_path', type=str, default='/interaction_data.pickle')
@@ -30,7 +35,9 @@ if __name__ == "__main__":
     parser.add_argument('--num_threads', type=int, default=1)
     args = parser.parse_known_args()[0]
 
-    # Initialize environmental configs
+    #############
+    ## Configs ##
+    #############
     print('[INITIALIZE ENVIRONMENTAL CONFIGS]')
     if args.user == 'hj':
         wandb_id = '96022b49a4e5c639895ba1e229022e087f79c84a'
@@ -46,6 +53,9 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     torch.set_num_threads(args.num_threads)
 
+    ################
+    ## DataLoader ##
+    ################
     # Initialize raw-data & loader
     print('[LOAD DATA]')
     interaction_data_path = args.data_dir + args.interaction_path
@@ -60,6 +70,9 @@ if __name__ == "__main__":
     with open(dict_path, 'rb') as f:
         categorical_ids = pickle.load(f)
 
+    #############
+    ## Trainer ##
+    #############
     # Initialize data & trainer func
     print('[INITIALIZE DATA LOADER & TRAINER FUNC]')
     if args.op == 'train_interaction':
@@ -67,25 +80,32 @@ if __name__ == "__main__":
         args = parser.parse_args()
         wandb.config.update(args)
         train_data = InteractionDataset(args,
-                                        interaction_data['train'][:100],
+                                        interaction_data['train'],
                                         categorical_ids,
                                         is_train=True)
-        from train_interaction_model import InteractionModelTrainer as Trainer
-    elif args.op == 'train_recommendation':
-        parser = add_recommendation_arguments(parser)
+        from trainers.train_interaction import InteractionTrainer as Trainer
+
+    elif args.op == 'train_user_rec':
+        parser = add_user_rec_arguments(parser)
+        args = parser.parse_args()
+        from trainers.train_user_rec import UserRecTrainer as Trainer
+        raise NotImplementedError
+
+    elif args.op == 'train_context_rec':
+        parser = add_context_rec_arguments(parser)
         args = parser.parse_args()
         wandb.config.update(args)
-        train_data = MatchTrainDataset(args,
-                                  match_data['train'][:10000],
-                                  categorical_ids)
-        from train_recommendation_model import RecommendationModelTrainer as Trainer
+        train_data = ContextRecDataset(args,
+                                       match_data['train'],
+                                       categorical_ids)
+        from trainers.train_context_rec import ContextRecTrainer as Trainer
     else:
         raise NotImplementedError
 
-    val_data = MatchTestDataset(args,
+    val_data = MatchEvalDataset(args,
                                 match_data['val'][:1000],
                                 categorical_ids)
-    test_data = MatchTestDataset(args,
+    test_data = MatchEvalDataset(args,
                                  match_data['test'][:1000],
                                  categorical_ids)
 
