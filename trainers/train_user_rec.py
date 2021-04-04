@@ -6,11 +6,12 @@ from common.metrics import *
 
 
 class UserRecTrainer():
-    def __init__(self, args, train_loader, val_loader, test_loader, categorical_ids, device):
+    def __init__(self, args, train_loader, val_loader, test_loader, user_history_data, categorical_ids, device):
         self.args = args
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.test_loader = test_loader
+        self.user_history_data = user_history_data
         self.categorical_ids = categorical_ids
         self.device = device
         pass
