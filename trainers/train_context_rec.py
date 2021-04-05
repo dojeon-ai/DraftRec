@@ -90,7 +90,6 @@ class ContextRecTrainer():
                 wandb.log(summary, e)
                 # self._save_model('model.pt', e)
 
-
     def evaluate(self, loader):
         self.model.eval()
         # initialize metrics
@@ -99,20 +98,14 @@ class ContextRecTrainer():
             summary['HR@'+str(k)] = 0.0
             summary['NDCG@'+str(k)] = 0.0
         summary['MRR'] = 0.0
-        pi_metrics = []
-        for key in summary.keys():
-            pi_metrics.append(key)
-        summary['ACC'] = 0.0
-        summary['MAE'] = 0.0
-        summary['MSE'] = 0.0
-        summary['ACC-LAST'] = 0.0
-        summary['MAE-LAST'] = 0.0
-        summary['MSE-LAST'] = 0.0
+        for metric in ['ACC', 'MAE', 'MSE']:
+            summary[metric] = 0.0
 
+        total_num_valid_users = 0
         for x_batch, y_batch in tqdm.tqdm(loader):
             x_batch = [feature.to(self.device) for feature in x_batch]
             y_batch = [feature.to(self.device) for feature in y_batch]
-            (team_ids, ban_ids, user_ids, item_ids, lane_ids) = x_batch
+            (team_ids, ban_ids, user_ids, item_ids, lane_ids, history_ids) = x_batch
             (win_labels, item_labels) = y_batch  # [N,S], [N,S]
 
             item_labels, item_labels_idx = torch.max(item_labels, 1)  # [N]
@@ -128,21 +121,26 @@ class ContextRecTrainer():
             pi = pi[torch.arange(N, device=self.device), item_labels_idx, :].detach().cpu().numpy()  # [N, C]
             v = v[torch.arange(N, device=self.device), 0, :].squeeze(-1).detach().cpu().numpy()
 
+            # Only evaluate for the valid users
+            cur_user_ids = user_ids[torch.arange(N), item_labels_idx]
+            UNK = 3
+            valid_users = (cur_user_ids != UNK).detach().cpu().numpy()
+            num_valid_users = np.sum(valid_users)
+            pi = pi[valid_users]
+            item_labels = item_labels[valid_users]
+
             # Perform evaluation
-            # TODO: only test for the valid users
             for k in self.args.k_list:
-                summary['HR@' + str(k)] += recall_at_k(item_labels, pi, k) * N
-                summary['NDCG@' + str(k)] += ndcg_at_k(item_labels, pi, k) * N
-            summary['MRR'] += average_precision_at_k(item_labels, pi, pi.shape[1]) * N
+                summary['HR@' + str(k)] += recall_at_k(item_labels, pi, k) * num_valid_users
+                summary['NDCG@' + str(k)] += ndcg_at_k(item_labels, pi, k) * num_valid_users
+            summary['MRR'] += average_precision_at_k(item_labels, pi, pi.shape[1]) * num_valid_users
+            total_num_valid_users += num_valid_users
 
-            summary['ACC'] += np.sum((v >= 0.5) == win_labels)
-            summary['MAE'] += np.sum(np.abs(v - win_labels))
-            summary['MSE'] += np.sum(np.square(v - win_labels))
+            # summary['ACC'] += np.sum((v >= 0.5) == win_labels)
+            # summary['MAE'] += np.sum(np.abs(v - win_labels))
+            # summary['MSE'] += np.sum(np.square(v - win_labels))
 
         for metric, value in summary.items():
-            summary[metric] = (value / len(loader.dataset))
-        for metric, value in summary.items():
-            if metric in pi_metrics:
-                summary[metric] = (value * 100)
+            summary[metric] = (value / total_num_valid_users)
 
         return summary

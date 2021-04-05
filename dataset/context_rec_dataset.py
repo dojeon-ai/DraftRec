@@ -19,7 +19,7 @@ class ContextRecDataset(Dataset):
     # noinspection PyMethodMayBeStatic
     def _build_dataset(self, data):
         num_matches, _ = data.shape
-        team_ids, ban_ids, user_ids, item_ids, lane_ids = [], [], [], [], []
+        team_ids, ban_ids, user_ids, item_ids, lane_ids, history_ids = [], [], [], [], [], []
         win_labels, item_labels = [], []
         for match_idx in tqdm.tqdm(range(num_matches)):
             match = data.iloc[match_idx]
@@ -27,7 +27,8 @@ class ContextRecDataset(Dataset):
 
             # order-of-pick: https://riot-api-libraries.readthedocs.io/en/latest/specifics.html
             pick_order = [1, 6, 7, 2, 3, 8, 9, 4, 5, 10]
-            team_id, ban_id, user_id, item_id, lane_id = [self.CLS], [self.CLS], [self.CLS], [self.CLS], [self.CLS]
+            team_id, ban_id, user_id, item_id, lane_id, history_id = \
+                [self.CLS], [self.CLS], [self.CLS], [self.CLS], [self.CLS], [self.CLS]
             win_label, item_label = [win], [self.PAD]
             for i, order in enumerate(pick_order):
                 team_id.append(match['User' + str(order)+'_team'])
@@ -35,6 +36,7 @@ class ContextRecDataset(Dataset):
                 user_id.append(match['User'+str(order)+'_id'])
                 item_id.append(match['User'+str(order)+'_champion'])
                 lane_id.append(match['User' + str(order) + '_lane'])
+                history_id.append(match['User' + str(order) + '_stat'])
 
                 win_label.append(self.PAD)
                 item_label.append(self.PAD)
@@ -44,11 +46,12 @@ class ContextRecDataset(Dataset):
             user_ids.append(user_id)
             item_ids.append(item_id)
             lane_ids.append(lane_id)
+            history_ids.append(history_id)
 
             win_labels.append(win_label)
             item_labels.append(item_label)
 
-        return np.column_stack((team_ids, ban_ids, user_ids, item_ids, lane_ids, win_labels, item_labels))
+        return np.column_stack((team_ids, ban_ids, user_ids, item_ids, lane_ids, history_ids, win_labels, item_labels))
 
     def __len__(self):
         return len(self.data)
@@ -61,8 +64,9 @@ class ContextRecDataset(Dataset):
         user_ids = self.data[index][2*S:3*S].copy()
         item_ids = self.data[index][3*S:4*S].copy()
         lane_ids = self.data[index][4*S:5*S].copy()
-        win_labels = self.data[index][5*S:6*S].copy()
-        item_labels = self.data[index][6*S:7*S].copy()
+        history_ids = self.data[index][5*S:6*S].copy()
+        win_labels = self.data[index][6*S:7*S].copy()
+        item_labels = self.data[index][7*S:8*S].copy()
 
         team_prob = random.random()
         if team_prob < 0.5:
@@ -96,7 +100,8 @@ class ContextRecDataset(Dataset):
         user_ids = torch.LongTensor(user_ids)
         item_ids = torch.LongTensor(item_ids)
         lane_ids = torch.LongTensor(lane_ids)
+        history_ids = torch.LongTensor(history_ids)
         win_labels = torch.FloatTensor(win_labels)
         item_labels = torch.LongTensor(item_labels)
 
-        return (team_ids, ban_ids, user_ids, item_ids, lane_ids), (win_labels, item_labels)
+        return (team_ids, ban_ids, user_ids, item_ids, lane_ids, history_ids), (win_labels, item_labels)

@@ -22,8 +22,8 @@ class UserRecDataset(Dataset):
         return len(self.data) - self.num_special_tokens
 
     def __getitem__(self, index):
-        index = index + self.num_special_tokens
-        match_history = self.data[index]
+        user_idx = index + self.num_special_tokens
+        match_history = self.data[user_idx]
         is_train_data = False
         # randomly selects the match_idx to train
         while not is_train_data:
@@ -32,10 +32,9 @@ class UserRecDataset(Dataset):
         history_start_idx = int(max(rand_match_idx + 1 - self.args.max_seq_len, 0))
         history_end_idx = int(rand_match_idx + 1)
         match_history = match_history[history_start_idx:history_end_idx]
-        # if idx is 0, convert history to the list
+
         if not isinstance(match_history, list):
             match_history = [match_history]
-
         # append history to ids
         ban_ids, user_ids, item_ids, lane_ids, win_ids = [], [], [], [], []
         # win_mask_labels are needed to
@@ -45,7 +44,7 @@ class UserRecDataset(Dataset):
         for _ in range(num_padding):
             # TODO: append team information?
             ban_ids.append([self.PAD] * 10)
-            user_ids.append(index)
+            user_ids.append(self.PAD)
             item_ids.append(self.PAD)
             lane_ids.append(self.PAD)
             win_ids.append(self.PAD)
@@ -56,7 +55,7 @@ class UserRecDataset(Dataset):
         # history is already ordered in the time sequence
         for match_stat in match_history:
             ban_ids.append(match_stat['bans'])
-            user_ids.append(index)
+            user_ids.append(user_idx)
             item_ids.append(match_stat['item'])
             lane_ids.append(match_stat['lane'])
             win_ids.append(match_stat['win'] + self.num_special_tokens)
@@ -80,6 +79,63 @@ class UserRecDataset(Dataset):
                 win_ids[s] = self.MASK
                 win_labels[s] = (win - self.num_special_tokens)
                 win_mask_labels[s] = 1
+
+        ban_ids = torch.LongTensor(ban_ids)
+        user_ids = torch.LongTensor(user_ids)
+        item_ids = torch.LongTensor(item_ids)
+        lane_ids = torch.LongTensor(lane_ids)
+        win_ids = torch.LongTensor(win_ids)
+        win_labels = torch.FloatTensor(win_labels)
+        win_mask_labels = torch.FloatTensor(win_mask_labels)
+        item_labels = torch.LongTensor(item_labels)
+
+        return (ban_ids, user_ids, item_ids, lane_ids, win_ids), (win_labels, win_mask_labels, item_labels)
+
+    def get_item_with_history_idx(self, user_idx, stat_idx):
+        match_history = self.data[user_idx]
+        history_start_idx, history_end_idx = -1, -1
+        for idx, match in enumerate(match_history):
+            if match['id'] == stat_idx:
+                history_end_idx = idx
+                break
+        if history_end_idx == -1:
+            raise IndexError
+        history_start_idx = int(max(history_end_idx - self.args.max_seq_len, 0))
+        match_history = match_history[history_start_idx:history_end_idx]
+        if not isinstance(match_history, list):
+            match_history = [match_history]
+        # append history to ids
+        ban_ids, user_ids, item_ids, lane_ids, win_ids = [], [], [], [], []
+        # win_mask_labels are needed to
+        win_labels, win_mask_labels, item_labels = [], [], []
+        # append padding if history is less than the max_seq_len
+        num_padding = self.args.max_seq_len - len(match_history)
+        for _ in range(num_padding):
+            # TODO: append team information?
+            ban_ids.append([self.PAD] * 10)
+            user_ids.append(self.PAD)
+            item_ids.append(self.PAD)
+            lane_ids.append(self.PAD)
+            win_ids.append(self.PAD)
+            win_labels.append(self.PAD)
+            win_mask_labels.append(0)
+            item_labels.append(self.PAD)
+
+        # history is already ordered in the time sequence
+        for match_stat in match_history:
+            ban_ids.append(match_stat['bans'])
+            user_ids.append(user_idx)
+            item_ids.append(match_stat['item'])
+            lane_ids.append(match_stat['lane'])
+            win_ids.append(match_stat['win'] + self.num_special_tokens)
+            win_labels.append(self.PAD)
+            win_mask_labels.append(0)
+            item_labels.append(self.PAD)
+
+        # only mask the last-element
+        item = item_ids[-1]
+        item_ids[-1] = self.MASK
+        item_labels[-1] = item
 
         ban_ids = torch.LongTensor(ban_ids)
         user_ids = torch.LongTensor(user_ids)

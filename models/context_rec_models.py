@@ -42,7 +42,7 @@ class ContextRec(nn.Module):
             pi: torch.tensor: (N, S, C)
             v: torch.tensor: (N, S, 1)
         """
-        team_ids, ban_ids, user_ids, item_ids, lane_ids = x
+        team_ids, ban_ids, user_ids, item_ids, lane_ids, history_ids = x
         N, S = team_ids.shape
         E = self.embedding_dim
 
