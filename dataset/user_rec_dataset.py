@@ -11,11 +11,11 @@ class UserRecDataset(Dataset):
         self.args = args
         self.data = data
         self.categorical_ids = categorical_ids
-        self.num_special_tokens = 4
         self.PAD = 0
         self.MASK = 1
         self.CLS = 2
         self.UNK = 3
+        self.num_special_tokens = 4
 
     def __len__(self):
         # identical to the number of users
@@ -31,20 +31,19 @@ class UserRecDataset(Dataset):
             is_train_data = (match_history[rand_match_idx]['data_type'] == 'train')
         history_start_idx = int(max(rand_match_idx + 1 - self.args.max_seq_len, 0))
         history_end_idx = int(rand_match_idx + 1)
-        match_history = match_history[history_start_idx:history_end_idx]
+        user_history = match_history[history_start_idx:history_end_idx]
 
-        if not isinstance(match_history, list):
-            match_history = [match_history]
+        if not isinstance(user_history, list):
+            user_history = [user_history]
         # append history to ids
-        ban_ids, user_ids, item_ids, lane_ids, win_ids = [], [], [], [], []
+        ban_ids, item_ids, lane_ids, win_ids = [], [], [], []
         # win_mask_labels are needed to
         win_labels, win_mask_labels, item_labels = [], [], []
         # append padding if history is less than the max_seq_len
-        num_padding = self.args.max_seq_len - len(match_history)
+        num_padding = self.args.max_seq_len - len(user_history)
         for _ in range(num_padding):
             # TODO: append team information?
             ban_ids.append([self.PAD] * 10)
-            user_ids.append(self.PAD)
             item_ids.append(self.PAD)
             lane_ids.append(self.PAD)
             win_ids.append(self.PAD)
@@ -53,18 +52,17 @@ class UserRecDataset(Dataset):
             item_labels.append(self.PAD)
 
         # history is already ordered in the time sequence
-        for match_stat in match_history:
-            ban_ids.append(match_stat['bans'])
-            user_ids.append(user_idx)
-            item_ids.append(match_stat['item'])
-            lane_ids.append(match_stat['lane'])
-            win_ids.append(match_stat['win'] + self.num_special_tokens)
+        for history in user_history:
+            ban_ids.append(history['bans'])
+            item_ids.append(history['item'])
+            lane_ids.append(history['lane'])
+            win_ids.append(history['win'])
             win_labels.append(self.PAD)
             win_mask_labels.append(0)
             item_labels.append(self.PAD)
 
         # Mask item
-        for s in range(num_padding, len(match_history)):
+        for s in range(num_padding, len(user_history)):
             prob = random.random()
             if prob < self.args.mask_prob:
                 item = item_ids[s]
@@ -72,7 +70,7 @@ class UserRecDataset(Dataset):
                 item_labels[s] = item
 
         # Mask win
-        for s in range(num_padding, len(match_history)):
+        for s in range(num_padding, len(user_history)):
             prob = random.random()
             if prob < self.args.mask_prob:
                 win = win_ids[s]
@@ -81,7 +79,6 @@ class UserRecDataset(Dataset):
                 win_mask_labels[s] = 1
 
         ban_ids = torch.LongTensor(ban_ids)
-        user_ids = torch.LongTensor(user_ids)
         item_ids = torch.LongTensor(item_ids)
         lane_ids = torch.LongTensor(lane_ids)
         win_ids = torch.LongTensor(win_ids)
@@ -89,61 +86,4 @@ class UserRecDataset(Dataset):
         win_mask_labels = torch.FloatTensor(win_mask_labels)
         item_labels = torch.LongTensor(item_labels)
 
-        return (ban_ids, user_ids, item_ids, lane_ids, win_ids), (win_labels, win_mask_labels, item_labels)
-
-    def get_item_with_history_idx(self, user_idx, stat_idx):
-        match_history = self.data[user_idx]
-        history_start_idx, history_end_idx = -1, -1
-        for idx, match in enumerate(match_history):
-            if match['id'] == stat_idx:
-                history_end_idx = idx
-                break
-        if history_end_idx == -1:
-            raise IndexError
-        history_start_idx = int(max(history_end_idx - self.args.max_seq_len, 0))
-        match_history = match_history[history_start_idx:history_end_idx]
-        if not isinstance(match_history, list):
-            match_history = [match_history]
-        # append history to ids
-        ban_ids, user_ids, item_ids, lane_ids, win_ids = [], [], [], [], []
-        # win_mask_labels are needed to
-        win_labels, win_mask_labels, item_labels = [], [], []
-        # append padding if history is less than the max_seq_len
-        num_padding = self.args.max_seq_len - len(match_history)
-        for _ in range(num_padding):
-            # TODO: append team information?
-            ban_ids.append([self.PAD] * 10)
-            user_ids.append(self.PAD)
-            item_ids.append(self.PAD)
-            lane_ids.append(self.PAD)
-            win_ids.append(self.PAD)
-            win_labels.append(self.PAD)
-            win_mask_labels.append(0)
-            item_labels.append(self.PAD)
-
-        # history is already ordered in the time sequence
-        for match_stat in match_history:
-            ban_ids.append(match_stat['bans'])
-            user_ids.append(user_idx)
-            item_ids.append(match_stat['item'])
-            lane_ids.append(match_stat['lane'])
-            win_ids.append(match_stat['win'] + self.num_special_tokens)
-            win_labels.append(self.PAD)
-            win_mask_labels.append(0)
-            item_labels.append(self.PAD)
-
-        # only mask the last-element
-        item = item_ids[-1]
-        item_ids[-1] = self.MASK
-        item_labels[-1] = item
-
-        ban_ids = torch.LongTensor(ban_ids)
-        user_ids = torch.LongTensor(user_ids)
-        item_ids = torch.LongTensor(item_ids)
-        lane_ids = torch.LongTensor(lane_ids)
-        win_ids = torch.LongTensor(win_ids)
-        win_labels = torch.FloatTensor(win_labels)
-        win_mask_labels = torch.FloatTensor(win_mask_labels)
-        item_labels = torch.LongTensor(item_labels)
-
-        return (ban_ids, user_ids, item_ids, lane_ids, win_ids), (win_labels, win_mask_labels, item_labels)
+        return (ban_ids, item_ids, lane_ids, win_ids), (win_labels, win_mask_labels, item_labels)

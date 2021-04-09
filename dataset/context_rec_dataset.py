@@ -9,7 +9,7 @@ class ContextRecDataset(Dataset):
     def __init__(self, args, data, categorical_ids):
         self.args = args
         self.categorical_ids = categorical_ids
-        self.seq_len = 11
+        self.board_len = 11
         self.PAD = 0
         self.MASK = 1
         self.CLS = 2
@@ -19,7 +19,7 @@ class ContextRecDataset(Dataset):
     # noinspection PyMethodMayBeStatic
     def _build_dataset(self, data):
         num_matches, _ = data.shape
-        team_ids, ban_ids, user_ids, item_ids, lane_ids, history_ids = [], [], [], [], [], []
+        team_ids, ban_ids, user_ids, item_ids, lane_ids = [], [], [], [], []
         win_labels, item_labels = [], []
         for match_idx in tqdm.tqdm(range(num_matches)):
             match = data.iloc[match_idx]
@@ -27,8 +27,8 @@ class ContextRecDataset(Dataset):
 
             # order-of-pick: https://riot-api-libraries.readthedocs.io/en/latest/specifics.html
             pick_order = [1, 6, 7, 2, 3, 8, 9, 4, 5, 10]
-            team_id, ban_id, user_id, item_id, lane_id, history_id = \
-                [self.CLS], [self.CLS], [self.CLS], [self.CLS], [self.CLS], [self.CLS]
+            team_id, ban_id, user_id, item_id, lane_id = \
+                [self.CLS], [self.CLS], [self.CLS], [self.CLS], [self.CLS]
             win_label, item_label = [win], [self.PAD]
             for i, order in enumerate(pick_order):
                 team_id.append(match['User' + str(order)+'_team'])
@@ -36,7 +36,6 @@ class ContextRecDataset(Dataset):
                 user_id.append(match['User'+str(order)+'_id'])
                 item_id.append(match['User'+str(order)+'_champion'])
                 lane_id.append(match['User' + str(order) + '_lane'])
-                history_id.append(match['User' + str(order) + '_stat'])
 
                 win_label.append(self.PAD)
                 item_label.append(self.PAD)
@@ -46,27 +45,25 @@ class ContextRecDataset(Dataset):
             user_ids.append(user_id)
             item_ids.append(item_id)
             lane_ids.append(lane_id)
-            history_ids.append(history_id)
 
             win_labels.append(win_label)
             item_labels.append(item_label)
 
-        return np.column_stack((team_ids, ban_ids, user_ids, item_ids, lane_ids, history_ids, win_labels, item_labels))
+        return np.column_stack((team_ids, ban_ids, user_ids, item_ids, lane_ids, win_labels, item_labels))
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, index):
         # using the numpy array to provide faster indexing (5x faster than pandas dictionary?)
-        S = self.seq_len
-        team_ids = self.data[index][:S].copy()
-        ban_ids = self.data[index][S:2*S].copy()
-        user_ids = self.data[index][2*S:3*S].copy()
-        item_ids = self.data[index][3*S:4*S].copy()
-        lane_ids = self.data[index][4*S:5*S].copy()
-        history_ids = self.data[index][5*S:6*S].copy()
-        win_labels = self.data[index][6*S:7*S].copy()
-        item_labels = self.data[index][7*S:8*S].copy()
+        B = self.board_len
+        team_ids = self.data[index][:B].copy()
+        ban_ids = self.data[index][B:2*B].copy()
+        user_ids = self.data[index][2*B:3*B].copy()
+        item_ids = self.data[index][3*B:4*B].copy()
+        lane_ids = self.data[index][4*B:5*B].copy()
+        win_labels = self.data[index][5*B:6*B].copy()
+        item_labels = self.data[index][6*B:7*B].copy()
 
         team_prob = random.random()
         if team_prob < 0.5:
@@ -75,33 +72,31 @@ class ContextRecDataset(Dataset):
         else:
             team = self.categorical_ids['team']['RED']
             team_mask = (team_ids == team).astype(float)
-        team_mask[0] = 1.0  # [CLS]
+        team_mask[0] = self.CLS
 
         # blue-team cannot see the 'lane' and 'user' of the red-team and vice-versa
         lane_ids = np.where(team_mask == 1, lane_ids, self.UNK)
         user_ids = np.where(team_mask == 1, user_ids, self.UNK)
 
-        for s in range(1, S):
+        for b in range(1, B):
             prob = random.random()
             if prob < self.args.mask_prob:
-                item = item_ids[s]
-                item_ids[s] = self.MASK
+                item = item_ids[b]
+                item_ids[b] = self.MASK
 
-                # item_labels[s] = item
-                # TODO: remove below formula if it does not work
-                user = user_ids[s]
+                # Showed slight improvement compared to when we did train UNK tokens.
+                user = user_ids[b]
                 if user == self.UNK:
-                    item_labels[s] = self.PAD
+                    item_labels[b] = self.PAD
                 else:
-                    item_labels[s] = item
+                    item_labels[b] = item
 
         team_ids = torch.LongTensor(team_ids)
         ban_ids = torch.LongTensor(ban_ids)
         user_ids = torch.LongTensor(user_ids)
         item_ids = torch.LongTensor(item_ids)
         lane_ids = torch.LongTensor(lane_ids)
-        history_ids = torch.LongTensor(history_ids)
         win_labels = torch.FloatTensor(win_labels)
         item_labels = torch.LongTensor(item_labels)
 
-        return (team_ids, ban_ids, user_ids, item_ids, lane_ids, history_ids), (win_labels, item_labels)
+        return (team_ids, ban_ids, user_ids, item_ids, lane_ids), (win_labels, item_labels)

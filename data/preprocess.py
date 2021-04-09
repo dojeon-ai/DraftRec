@@ -7,7 +7,9 @@ import re
 import time
 import ast
 import argparse
+import tqdm
 from itertools import permutations as pm
+from collections import defaultdict
 
 
 def preprocess(raw_data):
@@ -42,28 +44,40 @@ def init_dictionary():
     version_to_idx['CLS'] = 2
     version_to_idx['UNK'] = 3
     # Lane dictionary
-    lane_to_idx = {'PAD': 0,
-                   'MASK': 1,
-                   'CLS': 2,
-                   'UNK': 3,
-                   'TOP': 4,
-                   'JUNGLE': 5,
-                   'MIDDLE': 6,
-                   'DUO_CARRY': 7,
-                   'DUO_SUPPORT': 8}
+    lane_to_idx = {}
+    lane_to_idx['PAD'] = 0
+    lane_to_idx['MASK'] = 1
+    lane_to_idx['CLS'] = 2
+    lane_to_idx['UNK'] = 3
+    lane_to_idx['TOP'] = 4
+    lane_to_idx['JUNGLE'] = 5
+    lane_to_idx['MIDDLE'] = 6
+    lane_to_idx['DUO_CARRY'] = 7
+    lane_to_idx['DUO_SUPPORT'] = 8
     # Team dictionary
-    team_to_idx = {'PAD': 0,
-                   'MASK': 1,
-                   'CLS': 2,
-                   'UNK': 3,
-                   'BLUE': 4,
-                   'RED': 5}
+    team_to_idx = {}
+    team_to_idx['PAD'] = 0
+    team_to_idx['MASK'] = 1
+    team_to_idx['CLS'] = 2
+    team_to_idx['UNK'] = 3
+    team_to_idx['BLUE'] = 4
+    team_to_idx['RED'] = 5
+    # Win dictionary
+    win_to_idx = {}
+    win_to_idx['PAD'] = 0
+    win_to_idx['MASK'] = 1
+    win_to_idx['CLS'] = 2
+    win_to_idx['UNK'] = 3
+    win_to_idx[0] = 4  # Blue-team lose
+    win_to_idx[1] = 5  # Blue-team win
+
     categorical_ids['user'] = user_to_idx
     categorical_ids['interaction_per_user'] = {}
     categorical_ids['champion'] = champion_to_idx
     categorical_ids['version'] = version_to_idx
     categorical_ids['lane'] = lane_to_idx
     categorical_ids['team'] = team_to_idx
+    categorical_ids['win'] = win_to_idx
     return categorical_ids
 
 
@@ -190,19 +204,21 @@ def create_match_data(data, categorical_ids, columns):
 def create_user_history_data(args, match_data, categorical_ids):
     num_participants = 10
     user_to_idx = categorical_ids['user']
+    win_to_idx = categorical_ids['win']
     # aggregate match-data
     match_data_df = pd.concat([match_data['train'], match_data['val'], match_data['test']]).reset_index(drop=True)
     for participant_id in range(1, num_participants + 1):
-        match_data_df['User' + str(participant_id) + '_stat'] = 0
+        match_data_df['User' + str(participant_id) + '_history'] = 0
 
     # initialize user_to_match_history
-    user_to_match_history = {}
+    user_to_history = {}
     for user_id in range(len(user_to_idx)):
-        user_to_match_history[user_id] = []
+        user_to_history[user_id] = []
 
-    # append stat history to user_to_match_history
-    stat_id = 0
-    for match_idx in range(len(match_data_df)):
+    # append history_id to user_to_match_history
+    history_dict = defaultdict(list)
+    history_id = 0
+    for match_idx in tqdm.tqdm(range(len(match_data_df))):
         match = match_data_df.iloc[match_idx]
         win = int(match['win'] == 'Win')
         time = match['time']
@@ -223,34 +239,42 @@ def create_user_history_data(args, match_data, categorical_ids):
             item = match['User' + str(p_idx + 1) + '_champion']
             lane = match['User' + str(p_idx + 1) + '_lane']
 
-            user_stat_in_match = {}
-            user_stat_in_match['id'] = stat_id
-            user_stat_in_match['time'] = time
-            user_stat_in_match['lane'] = lane
-            user_stat_in_match['item'] = item
-            user_stat_in_match['bans'] = bans
-            user_stat_in_match['data_type'] = data_type
+            history = {}
+            history['id'] = history_id
+            history['time'] = time
+            history['lane'] = lane
+            history['item'] = item
+            history['bans'] = bans
+            history['data_type'] = data_type
 
             # user belongs to blue-team so win should be identical
             if p_idx < 5:
-                user_stat_in_match['win'] = win
+                history['win'] = win_to_idx[win]
             # user belongs to red-team so win should be reversed
             else:
-                user_stat_in_match['win'] = 1 - win
+                history['win'] = win_to_idx[1 - win]
             if user != user_to_idx['UNK']:
-                user_to_match_history[user].append(user_stat_in_match)
-                match_data_df.loc[match_idx, 'User' + str(p_idx + 1) + '_stat'] = stat_id
-                stat_id += 1
+                user_to_history[user].append(history)
+                # directly accessing dataframe with loc takes huge amount of time
+                history_dict['User' + str(p_idx + 1) + '_history'].append(history_id)
+                #match_data_df.loc[match_idx, 'User' + str(p_idx + 1) + '_history'] = history_id
+                history_id += 1
+            else:
+                history_dict['User' + str(p_idx + 1) + '_history'].append(0)
+
+    # fill the match_data_df
+    for key, value in history_dict.items():
+        match_data_df[key] = value
 
     # re-order the matches
-    for user, match_histories in user_to_match_history.items():
-        user_to_match_history[user] = sorted(match_histories, key=lambda x: x['time'])
+    for user, histories in user_to_history.items():
+        user_to_history[user] = sorted(histories, key=lambda x: x['time'])
 
     # check whether the item is propery ordered in sequence
-    for user, match_histories in user_to_match_history.items():
+    for user, histories in user_to_history.items():
         cur_time = 0
-        for match_history in match_histories:
-            time = match_history['time']
+        for history in histories:
+            time = history['time']
             assert time > cur_time
             cur_time = time
 
@@ -259,7 +283,7 @@ def create_user_history_data(args, match_data, categorical_ids):
     match_data['val'] = match_data_df[(args.train_end_time <= match_data_df['time']) &
                                       (match_data_df['time'] < args.val_end_time)].reset_index(drop=True)
     match_data['test'] = match_data_df[(match_data_df['time'] > args.val_end_time)].reset_index(drop=True)
-    return match_data, user_to_match_history
+    return match_data, user_to_history
 
 
 def create_interaction_data(data, categorical_ids):
@@ -417,7 +441,7 @@ def fill_missing_lane(dataset, train_champion_lane_dict):
     return dataset
 
 
-def checksum_missing_values(dataset):
+def checksum_missing_lane_values(dataset):
     lane_df = dataset.filter(regex='lane')
     checksum = 0
     check_set = set((4, 5, 6, 7, 8))
@@ -438,7 +462,7 @@ if __name__=='__main__':
     parser.add_argument('--val_end_time', type=float, default=1613142000000) # 21.02.13
     parser.add_argument('--interaction_threshold', type=int, default=20)
     args = parser.parse_args()
-    file_list = glob.glob(args.data_dir + '*.csv')[10:15]
+    file_list = glob.glob(args.data_dir + '*.csv')
 
     # 1. Build dictionary
     print('[1. Start building dictionary]')
@@ -473,7 +497,7 @@ if __name__=='__main__':
             categorical_ids['user'][user] = len(categorical_ids['user'])
 
     # 2.a) Create match data
-    print('[2. Start creating match data]')
+    print('[2.1. Start creating match data]')
     num_participants = 10
     columns = ['win', 'version', 'time']
     for participant_id in range(1,num_participants+1):
@@ -511,7 +535,7 @@ if __name__=='__main__':
     match_data['test'] = test_match_data.drop_duplicates().reset_index(drop=True)
 
     # 2.b) Fill in missing lane values with most probable permutation.
-    print("Start filling in missing lanes")
+    print("2.2. Start filling missing lanes")
     train_champion_lane_dict = create_chmp_lane_ratio(match_data['train'])
 
     match_data['train'] = fill_missing_lane(match_data['train'], train_champion_lane_dict)
@@ -519,9 +543,9 @@ if __name__=='__main__':
     match_data['test'] = fill_missing_lane(match_data['test'], train_champion_lane_dict)
 
     # Checksum to see if there are any reisdua errors within the lane-info
-    train_checksum = checksum_missing_values(match_data['train'])
-    val_checksum = checksum_missing_values(match_data['val'])
-    test_checksum = checksum_missing_values(match_data['test'])
+    train_checksum = checksum_missing_lane_values(match_data['train'])
+    val_checksum = checksum_missing_lane_values(match_data['val'])
+    test_checksum = checksum_missing_lane_values(match_data['test'])
 
     assert train_checksum == 0
     assert val_checksum == 0
@@ -533,6 +557,7 @@ if __name__=='__main__':
     print('Finish creating match data')
 
     # 3. Create user-history data
+    print('[3. Start creating user-history data]')
     match_data, user_history_data = create_user_history_data(args, match_data, categorical_ids)
     with open('./match_data.pickle', 'wb') as f:
         pickle.dump(match_data, f)

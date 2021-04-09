@@ -13,7 +13,6 @@ class UserRec(nn.Module):
 
         # 0 : PAD, 1 : MASK, 2 : CLS, 3 : UNK
         self.num_special_tokens = 4
-        self.num_users = len(categorical_ids['user'])
         self.num_items = len(categorical_ids['champion'])
         self.num_lanes = len(categorical_ids['lane'])
         # 0: LOSE, 1 : WIN
@@ -21,8 +20,6 @@ class UserRec(nn.Module):
         self.seq_len = self.args.max_seq_len
 
         self.embedding_dim = args.embedding_dim
-        # TODO : Maybe use shared embeddings???
-        self.user_embedding = nn.Embedding(self.num_users, self.embedding_dim)
         self.item_embedding = nn.Embedding(self.num_items, self.embedding_dim)
         self.lane_embedding = nn.Embedding(self.num_lanes, self.embedding_dim)
         self.win_embedding = nn.Embedding(self.num_wins, self.embedding_dim)
@@ -42,22 +39,19 @@ class UserRec(nn.Module):
 
     def forward(self, x):
         """
-        Inputs
-            x: torch.tensor: (N, S, D)
         Outputs
             pi: torch.tensor: (N, S, C)
             v: torch.tensor: (N, S, 1)
         """
-        ban_ids, user_ids, item_ids, lane_ids, win_ids = x
-        N, S = user_ids.shape
+        ban_ids, item_ids, lane_ids, win_ids = x
+        N, S = item_ids.shape
         E = self.embedding_dim
 
-        user = self.user_embedding(user_ids)
         item = self.item_embedding(item_ids)
         lane = self.lane_embedding(lane_ids)
         win = self.win_embedding(win_ids)
 
-        x = user + item + lane + win
+        x = item + lane + win
         x = self.position_embedding(x)
         x = self.dropout(x)
 

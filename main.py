@@ -12,7 +12,7 @@ from common.args import *
 from dataset.interaction_dataset import InteractionDataset
 from dataset.user_rec_dataset import UserRecDataset
 from dataset.context_rec_dataset import ContextRecDataset
-from dataset.match_eval_dataset import MatchEvalDataset
+from dataset.eval_dataset import EvalDataset
 
 
 if __name__ == "__main__":
@@ -21,9 +21,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='arguments for reward model')
     parser.add_argument('--exp_name', type=str, default='')
-    parser.add_argument('--op', default='train_context_rec', choices=['train_interaction', 'train_user_rec', 'train_context_rec'])
+    parser.add_argument('--op', default='train_user_rec', choices=['train_interaction', 'train_user_rec', 'train_context_rec'])
     parser.add_argument('--data_dir', type=str, default='./data')
     #parser.add_argument('--data_dir', type=str, default='/home/nas1_userC/hojoonlee/draftRec/data')
+    #parser.add_argument('--data_dir', type=str, default='/home/nas1_userC/hojoonlee/draftRec/toy_data')
     parser.add_argument('--interaction_path', type=str, default='/interaction_data.pickle')
     parser.add_argument('--match_path', type=str, default='/match_data.pickle')
     parser.add_argument('--user_history_path', type=str, default='/user_history_data.pickle')
@@ -78,6 +79,7 @@ if __name__ == "__main__":
     #############
     ## Trainer ##
     #############
+
     # Initialize data & trainer func
     print('[INITIALIZE DATA LOADER & TRAINER FUNC]')
     if args.op == 'train_interaction':
@@ -85,10 +87,9 @@ if __name__ == "__main__":
         args = parser.parse_args()
         wandb.config.update(args)
         train_data = InteractionDataset(args,
-                                        interaction_data['train'],
-                                        categorical_ids,
-                                        is_train=True)
-        from trainers.train_interaction import InteractionTrainer as Trainer
+                                        interaction_data['train'][:1000],
+                                        categorical_ids)
+        from trainers.interaction_trainer import InteractionTrainer as Trainer
 
     elif args.op == 'train_user_rec':
         parser = add_user_rec_arguments(parser)
@@ -97,7 +98,7 @@ if __name__ == "__main__":
         train_data = UserRecDataset(args,
                                     user_history_data,
                                     categorical_ids)
-        from trainers.train_user_rec import UserRecTrainer as Trainer
+        from trainers.user_rec_trainer import UserRecTrainer as Trainer
 
     elif args.op == 'train_context_rec':
         parser = add_context_rec_arguments(parser)
@@ -106,16 +107,19 @@ if __name__ == "__main__":
         train_data = ContextRecDataset(args,
                                        match_data['train'],
                                        categorical_ids)
-        from trainers.train_context_rec import ContextRecTrainer as Trainer
+        from trainers.context_rec_trainer import ContextRecTrainer as Trainer
     else:
         raise NotImplementedError
 
-    val_data = MatchEvalDataset(args,
-                                match_data['val'][:1000],
-                                categorical_ids)
-    test_data = MatchEvalDataset(args,
-                                 match_data['test'][:1000],
-                                 categorical_ids)
+
+    val_data = EvalDataset(args,
+                           match_data['val'],
+                           user_history_data,
+                           categorical_ids)
+    test_data = EvalDataset(args,
+                            match_data['test'],
+                            user_history_data,
+                            categorical_ids)
 
     del interaction_data
     del match_data
