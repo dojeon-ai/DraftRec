@@ -37,8 +37,8 @@ class ContextRecDataset(Dataset):
                 item_id.append(match['User'+str(order)+'_champion'])
                 lane_id.append(match['User' + str(order) + '_lane'])
 
-                #win_label.append(self.PAD)
-                win_label.append(win)
+                win_label.append(self.PAD)
+                #win_label.append(win)
                 item_label.append(self.PAD)
 
             team_ids.append(team_id)

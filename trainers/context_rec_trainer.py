@@ -57,8 +57,7 @@ class ContextRecTrainer(BaseTrainer):
                 pi_pred, v_pred = self.model(x_batch)
                 N, B, C = pi_pred.shape
                 pi_loss = self.pi_criterion(pi_pred.reshape(N*B, C), pi_true.reshape(-1))
-                #v_loss = self.v_criterion(v_pred[:,0,:].squeeze(-1), v_true[:,0])
-                v_loss = self.v_criterion(v_pred[:, 1, :].squeeze(-1), v_true[:, 1])
+                v_loss = self.v_criterion(v_pred[:,0,:].squeeze(-1), v_true[:,0])
                 if e < args.v_start:
                     loss = pi_loss
                 else:
