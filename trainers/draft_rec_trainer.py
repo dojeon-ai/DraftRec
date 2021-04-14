@@ -3,19 +3,19 @@ import wandb
 import torch
 import torch.nn.functional as F
 from common.metrics import *
-from models.context_rec_models import ContextRec
+from models.draft_rec_models import DraftRec
 from trainers.base_trainer import BaseTrainer
 
 
-class ContextRecTrainer(BaseTrainer):
+class DraftRecTrainer(BaseTrainer):
     def __init__(self, args, train_loader, val_loader, test_loader, categorical_ids, device):
-        super(ContextRecTrainer, self).__init__(args, train_loader, val_loader, test_loader, categorical_ids, device)
+        super(DraftRecTrainer, self).__init__(args, train_loader, val_loader, test_loader, categorical_ids, device)
         self.model = self._initialize_model()
         self.pi_criterion, self.v_criterion = self._initialize_criterion()
         self.optimizer, self.scheduler = self._initialize_optimizer()
 
     def _initialize_model(self):
-        model = ContextRec(self.args, self.categorical_ids, self.device)
+        model = DraftRec(self.args, self.categorical_ids, self.device)
         return model.to(self.device)
 
     def _initialize_criterion(self):
@@ -48,17 +48,18 @@ class ContextRecTrainer(BaseTrainer):
         for e in range(1, args.epochs+1):
             print('[Epoch:%d]' % e)
             self.model.train()
-            for x_batch, y_batch in tqdm.tqdm(self.train_loader):
+            for match_batch, user_history_batch in tqdm.tqdm(self.train_loader):
                 self.optimizer.zero_grad()
-                x_batch = [feature.to(self.device) for feature in x_batch]
-                y_batch = [feature.to(self.device) for feature in y_batch]
-                (v_true, pi_true) = y_batch
+                _, match_y_batch = match_batch
+                match_y_batch = [feature.to(self.device) for feature in match_y_batch]
+                user_history_x_batch, _ = user_history_batch
+                user_history_x_batch = [feature.to(self.device) for feature in user_history_x_batch]
 
-                pi_pred, v_pred = self.model(x_batch)
-                N, B, C = pi_pred.shape
-                pi_loss = self.pi_criterion(pi_pred.reshape(N*B, C), pi_true.reshape(-1))
-                #v_loss = self.v_criterion(v_pred[:,0,:].squeeze(-1), v_true[:,0])
-                v_loss = self.v_criterion(v_pred[:, 1, :].squeeze(-1), v_true[:, 1])
+                (v_true, pi_true, _) = match_y_batch
+                pi_pred, v_pred = self.model(user_history_x_batch)
+                N, _, C = pi_pred.shape
+                pi_loss = self.pi_criterion(pi_pred.reshape(-1, C), pi_true.reshape(-1))
+                v_loss = self.v_criterion(v_pred[:,0,:].squeeze(-1), v_true[:,0])
                 if e < args.v_start:
                     loss = pi_loss
                 else:

@@ -56,12 +56,11 @@ class ContextRec(nn.Module):
         x = self.dropout(x)
 
         attn_mask = None
-        """
-        attn_mask = (torch.arange(S+1).to(self.device)[None, :] <= (torch.arange(S)+1).to(self.device)[:, None]).float()
-        attn_mask = attn_mask.unsqueeze(2).matmul(attn_mask.unsqueeze(1)).bool()
-        attn_mask = ~attn_mask
-        attn_mask = attn_mask.repeat(N, 1, 1)
-        """
+        # attn_mask = (torch.arange(S+1).to(self.device)[None, :] <= (torch.arange(S)+1).to(self.device)[:, None]).float()
+        # attn_mask = attn_mask.unsqueeze(2).matmul(attn_mask.unsqueeze(1)).bool()
+        # attn_mask = ~attn_mask
+        # attn_mask = attn_mask.repeat(N, 1, 1)
+
         for layer in self.encoder:
             x = layer(x, attn_mask)
         x = self.norm(x)

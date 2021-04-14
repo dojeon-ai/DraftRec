@@ -107,15 +107,23 @@ class BaseTrainer():
                                         for feature in user_history_x_batch]
                 user_history_y_batch = [feature[torch.arange(N, device=self.device), user_true_idx-1, :]
                                         for feature in user_history_y_batch]
+                (user_ban_ids, user_item_ids, user_lane_ids, user_win_ids) = user_history_x_batch
                 (user_win_labels, user_win_mask_labels, user_item_labels) = user_history_y_batch
+
                 # get last-item of the user-history
                 pi_true, pi_true_idx = torch.max(user_item_labels, 1)  # [N]
                 pi_true = torch.eye(self.num_items)[pi_true].detach().cpu().numpy()  # [N, C]
                 v_true = user_win_labels.cpu().numpy()
                 v_true = v_true[:, -1] # see only last item
 
-                pi_pred, v_pred = self.model(user_history_x_batch)
+                # policy: result of the current game should be masked.
+                pi_pred, _ = self.model(user_history_x_batch)
                 pi_pred = torch.exp(pi_pred)
+                # value: current item should be given
+                user_item_ids[torch.arange(N, device=self.device), -1] \
+                    = user_item_labels[torch.arange(N, device=self.device), -1]
+                user_history_x_batch = (user_ban_ids, user_item_ids, user_lane_ids, user_win_ids)
+                _, v_pred = self.model(user_history_x_batch)
                 v_pred = F.sigmoid(v_pred)
 
                 # Inference the right sequence (last)
@@ -126,7 +134,7 @@ class BaseTrainer():
                 pi_true, pi_true_idx = torch.max(match_item_labels, 1)  # [N]
                 pi_true = torch.eye(self.num_items)[pi_true].detach().cpu().numpy()  # [N, C]
                 v_true = match_win_labels.cpu().numpy()
-                v_true = v_true[:, 0] # See only 0 since Win label is stored in position of CLS token
+                v_true = v_true[:, 1] # See only 0 since Win label is stored in position of CLS token
 
                 pi_pred, v_pred = self.model(match_x_batch)
                 pi_pred = torch.exp(pi_pred)
@@ -134,10 +142,22 @@ class BaseTrainer():
 
                 # Inference the right sequence  (pi: [MASK], v: [CLS])
                 pi_pred = pi_pred[torch.arange(N, device=self.device), pi_true_idx, :].detach().cpu().numpy()  # [N, C]
-                v_pred = v_pred[torch.arange(N, device=self.device), 0, :].squeeze(-1).detach().cpu().numpy()
+                v_pred = v_pred[torch.arange(N, device=self.device), 1, :].squeeze(-1).detach().cpu().numpy()
 
             elif self.args.op == 'train_draft_rec':
-                pass
+                pi_true, pi_true_idx = torch.max(match_item_labels, 1)  # [N]
+                pi_true = torch.eye(self.num_items)[pi_true].detach().cpu().numpy()  # [N, C]
+                v_true = match_win_labels.cpu().numpy()
+                v_true = v_true[:, 0] # See only 0 since Win label is stored in position of CLS token
+
+                pi_pred, v_pred = self.model(user_history_x_batch)
+                pi_pred = torch.exp(pi_pred)
+                v_pred = F.sigmoid(v_pred)
+
+                # Inference the right sequence  (pi: [MASK], v: [CLS])
+                pi_pred = pi_pred[torch.arange(N, device=self.device), pi_true_idx, :].detach().cpu().numpy()  # [N, C]
+                v_pred = v_pred[torch.arange(N, device=self.device), 0, :].squeeze(-1).detach().cpu().numpy()
+
             else:
                 raise NotImplementedError
 

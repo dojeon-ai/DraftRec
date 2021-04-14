@@ -12,6 +12,7 @@ from common.args import *
 from dataset.interaction_dataset import InteractionDataset
 from dataset.user_rec_dataset import UserRecDataset
 from dataset.context_rec_dataset import ContextRecDataset
+from dataset.draft_rec_dataset import DraftRecDataset
 from dataset.eval_dataset import EvalDataset
 
 
@@ -21,7 +22,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='arguments for reward model')
     parser.add_argument('--exp_name', type=str, default='')
-    parser.add_argument('--op', default='train_user_rec', choices=['train_interaction', 'train_user_rec', 'train_context_rec'])
+    parser.add_argument('--op', default='train_draft_rec',
+                        choices=['train_interaction', 'train_user_rec', 'train_context_rec', 'train_draft_rec'])
     parser.add_argument('--data_dir', type=str, default='./data')
     #parser.add_argument('--data_dir', type=str, default='/home/nas1_userC/hojoonlee/draftRec/data')
     #parser.add_argument('--data_dir', type=str, default='/home/nas1_userC/hojoonlee/draftRec/toy_data')
@@ -108,9 +110,18 @@ if __name__ == "__main__":
                                        match_data['train'],
                                        categorical_ids)
         from trainers.context_rec_trainer import ContextRecTrainer as Trainer
+
+    elif args.op == 'train_draft_rec':
+        parser = add_draft_rec_arguments(parser)
+        args = parser.parse_args()
+        wandb.config.update(args)
+        train_data = DraftRecDataset(args,
+                                     match_data['train'],
+                                     user_history_data,
+                                     categorical_ids)
+        from trainers.draft_rec_trainer import DraftRecTrainer as Trainer
     else:
         raise NotImplementedError
-
 
     val_data = EvalDataset(args,
                            match_data['val'],

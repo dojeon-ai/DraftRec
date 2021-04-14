@@ -42,7 +42,8 @@ class EvalDataset():
                 lane_id.append(match['User' + str(order) + '_lane'])
                 history_id.append(match['User' + str(order) + '_history'])
 
-                win_label.append(self.PAD)
+                #win_label.append(self.PAD)
+                win_label.append(win)
                 item_label.append(self.PAD)
                 user_label.append(self.PAD)
 
@@ -76,6 +77,8 @@ class EvalDataset():
             user_label = match[8 * B:9 * B].copy()
 
             user_histories = []
+            mask_histories = []
+            unk_histories = []
             for b in range(1, B):
                 user_idx = user_id[b]
                 history_idx = history_id[b]
@@ -83,14 +86,19 @@ class EvalDataset():
                 item = item_id[b]
                 win = win_label[0]
 
+                unk_history = self._get_recent_match_history_of_unk(ban_id[1:], lane, item, win)
+                unk_history = self._build_recent_history(unk_history)
                 if user_idx != self.UNK:
                     match_history = self._get_recent_match_history(user_history_data, user_idx, history_idx)
+                    user_history = self._build_recent_history(match_history)
+                    mask_history = self._build_recent_history(match_history, mask=True)
                 else:
                     # ban_id[1:]: exclude [CLS] token
-                    match_history = self._get_recent_match_history_of_unk(ban_id[1:], lane, item, win)
-                user_history = self._build_recent_history(match_history)
+                    user_history = unk_history
+                    mask_history = unk_history
                 user_histories.append(user_history)
-            user_histories = [torch.stack(feature) for feature in list(map(list, zip(*user_histories)))]
+                unk_histories.append(unk_history)
+                mask_histories.append(mask_history)
 
             for b in range(1, B):
                 user = user_id[b]
@@ -120,7 +128,15 @@ class EvalDataset():
                 cur_user_label[b] = user
                 user_labels.append(cur_user_label)
 
-                history_eval_data.append(user_histories)
+                # opponent user's histories should be masked
+                cur_user_histories = user_histories.copy()
+                cur_user_histories[b-1] = mask_histories[b-1]
+                for c in range(b, B-1):
+                    cur_user_team_mask = team_mask[c]
+                    if cur_user_team_mask == 0:
+                        cur_user_histories[c] = unk_histories[c]
+                cur_user_histories = [torch.stack(feature) for feature in list(map(list, zip(*cur_user_histories)))]
+                history_eval_data.append(cur_user_histories)
 
         # len(match_eval_data) = num_matches * 10
         match_eval_data = np.column_stack((team_ids,
@@ -160,7 +176,7 @@ class EvalDataset():
         match_history = [history]
         return match_history
 
-    def _build_recent_history(self, match_history):
+    def _build_recent_history(self, match_history, mask=False):
         # append history to ids
         ban_ids, item_ids, lane_ids, win_ids = [], [], [], []
         # win_mask_labels are needed to
@@ -188,11 +204,12 @@ class EvalDataset():
 
         # only mask the last-element
         item = item_ids[-1]
-        item_ids[-1] = self.MASK
         win_ids[-1] = self.MASK
         win_labels[-1] = (history['win'] - self.num_special_tokens)
         win_mask_labels[-1] = 1  # no effect
-        item_labels[-1] = item
+        if mask:
+            item_ids[-1] = self.MASK
+            item_labels[-1] = item
 
         ban_ids = torch.LongTensor(ban_ids)
         item_ids = torch.LongTensor(item_ids)

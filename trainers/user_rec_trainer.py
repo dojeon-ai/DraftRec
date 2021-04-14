@@ -58,7 +58,7 @@ class UserRecTrainer(BaseTrainer):
                 N, S, C = pi_pred.shape
                 pi_loss = self.pi_criterion(pi_pred.reshape(N*S, C), pi_true.reshape(-1))
                 v_loss = self.v_criterion(v_pred[v_mask == 1].squeeze(-1), v_true[v_mask == 1])
-                if args.v_start < e:
+                if e < args.v_start:
                     loss = pi_loss
                 else:
                     loss = (1-args.lmbda) * pi_loss + args.lmbda * v_loss

@@ -37,7 +37,7 @@ class UserRec(nn.Module):
                                          GELU())
         self.value_head = nn.Linear(self.embedding_dim, 1)
 
-    def forward(self, x):
+    def forward(self, x, embedding=False):
         """
         Outputs
             pi: torch.tensor: (N, S, C)
@@ -62,8 +62,10 @@ class UserRec(nn.Module):
         for layer in self.encoder:
             x = layer(x, attn_mask)
         x = self.norm(x)
-        x = x.reshape(N * S, E)
+        if embedding:
+            return x[torch.arange(N, device=self.device), -1, :].squeeze(1)
 
+        x = x.reshape(N * S, E)
         pi_logit = self.policy_head(x)
         item_embed = self.item_embedding(torch.arange(self.num_items, device=self.device))
         pi_logit = pi_logit.matmul(item_embed.T).reshape(N, S, -1)

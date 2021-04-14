@@ -37,7 +37,8 @@ class ContextRecDataset(Dataset):
                 item_id.append(match['User'+str(order)+'_champion'])
                 lane_id.append(match['User' + str(order) + '_lane'])
 
-                win_label.append(self.PAD)
+                #win_label.append(self.PAD)
+                win_label.append(win)
                 item_label.append(self.PAD)
 
             team_ids.append(team_id)
@@ -75,8 +76,8 @@ class ContextRecDataset(Dataset):
         team_mask[0] = self.CLS
 
         # blue-team cannot see the 'lane' and 'user' of the red-team and vice-versa
-        lane_ids = np.where(team_mask == 1, lane_ids, self.UNK)
-        user_ids = np.where(team_mask == 1, user_ids, self.UNK)
+        # lane_ids = np.where(team_mask == 1, lane_ids, self.UNK)
+        # user_ids = np.where(team_mask == 1, user_ids, self.UNK)
 
         for b in range(1, B):
             prob = random.random()
