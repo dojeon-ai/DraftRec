@@ -13,6 +13,7 @@ from dataset.interaction_dataset import InteractionDataset
 from dataset.user_rec_dataset import UserRecDataset
 from dataset.context_rec_dataset import ContextRecDataset
 from dataset.draft_rec_dataset import DraftRecDataset
+from dataset.reward_model_dataset import RewardModelDataset
 from dataset.eval_dataset import EvalDataset
 
 
@@ -23,10 +24,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='arguments for reward model')
     parser.add_argument('--exp_name', type=str, default='')
     parser.add_argument('--op', default='train_draft_rec',
-                        choices=['train_interaction', 'train_user_rec', 'train_context_rec', 'train_draft_rec'])
-    parser.add_argument('--data_dir', type=str, default='./data')
+                        choices=['train_interaction', 'train_user_rec', 'train_context_rec',
+                                 'train_draft_rec', 'train_reward_model'])
+    #parser.add_argument('--data_dir', type=str, default='./data')
     #parser.add_argument('--data_dir', type=str, default='/home/nas1_userC/hojoonlee/draftRec/data')
-    #parser.add_argument('--data_dir', type=str, default='/home/nas1_userC/hojoonlee/draftRec/toy_data')
+    parser.add_argument('--data_dir', type=str, default='/home/nas1_userC/hojoonlee/draftRec/toy_data')
     parser.add_argument('--interaction_path', type=str, default='/interaction_data.pickle')
     parser.add_argument('--match_path', type=str, default='/match_data.pickle')
     parser.add_argument('--user_history_path', type=str, default='/user_history_data.pickle')
@@ -37,6 +39,8 @@ if __name__ == "__main__":
     parser.add_argument('--debug', type=str2bool, default=False)
     parser.add_argument('--user', type=str, default='hj', choices=['hj', 'dy', 'hs', 'bk'])
     parser.add_argument('--num_threads', type=int, default=1)
+    parser.add_argument('--k_list', type=str2list, default=[1, 5, 10])
+    parser.add_argument('--evaluate_every', type=int, default=10)
     args = parser.parse_known_args()[0]
 
     #############
@@ -116,19 +120,29 @@ if __name__ == "__main__":
         args = parser.parse_args()
         wandb.config.update(args)
         train_data = DraftRecDataset(args,
-                                     match_data['train'],
+                                     match_data['train'][:1000],
                                      user_history_data,
                                      categorical_ids)
         from trainers.draft_rec_trainer import DraftRecTrainer as Trainer
+
+    elif args.op == 'train_reward_model':
+        parser = add_reward_model_arguments(parser)
+        args = parser.parse_args()
+        wandb.config.update(args)
+        train_data = RewardModelDataset(args,
+                                       match_data['train'],
+                                       categorical_ids)
+        from trainers.reward_model_trainer import RewardModelTrainer as Trainer
+
     else:
         raise NotImplementedError
 
     val_data = EvalDataset(args,
-                           match_data['val'],
+                           match_data['val'][:1000],
                            user_history_data,
                            categorical_ids)
     test_data = EvalDataset(args,
-                            match_data['test'],
+                            match_data['test'][:1000],
                             user_history_data,
                             categorical_ids)
 

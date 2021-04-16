@@ -69,3 +69,12 @@ class DMF(nn.Module):
 
     def forward(self, x):
         pass
+
+
+class POP(nn.Module):
+    def __init__(self, args, categorical_ids):
+        super(POP, self).__init__()
+        pass
+
+    def forward(self, x):
+        pass

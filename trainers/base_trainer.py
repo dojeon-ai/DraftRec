@@ -44,7 +44,7 @@ class BaseTrainer():
             summary['HR@'+str(k)] = 0.0
             summary['NDCG@'+str(k)] = 0.0
         summary['MRR'] = 0.0
-        for metric in ['ACC', 'MAE', 'MSE']:
+        for metric in ['ACC', 'MAE', 'MSE', 'LAST_ACC', 'LAST_MAE', 'LAST_MSE']:
             summary[metric] = 0.0
 
         total_eval_num = 0
@@ -130,7 +130,7 @@ class BaseTrainer():
                 pi_pred = pi_pred[torch.arange(N, device=self.device), -1, :].detach().cpu().numpy()
                 v_pred = v_pred[torch.arange(N, device=self.device), -1, :].squeeze(-1).detach().cpu().numpy()
 
-            elif self.args.op == 'train_context_rec':
+            elif self.args.op in ['train_context_rec', 'train_reward_model']:
                 pi_true, pi_true_idx = torch.max(match_item_labels, 1)  # [N]
                 pi_true = torch.eye(self.num_items)[pi_true].detach().cpu().numpy()  # [N, C]
                 v_true = match_win_labels.cpu().numpy()
@@ -147,16 +147,19 @@ class BaseTrainer():
             elif self.args.op == 'train_draft_rec':
                 pi_true, pi_true_idx = torch.max(match_item_labels, 1)  # [N]
                 pi_true = torch.eye(self.num_items)[pi_true].detach().cpu().numpy()  # [N, C]
-                v_true = match_win_labels.cpu().numpy()
-                v_true = v_true[:, 0] # See only 0 since Win label is stored in position of CLS token
+                #v_true = match_win_labels.cpu().numpy()
+                #v_true = v_true[:, 0] # See only 0 since Win label is stored in position of CLS token
+
+                import pdb
+                pdb.set_trace()
 
                 pi_pred, v_pred = self.model(user_history_x_batch)
                 pi_pred = torch.exp(pi_pred)
-                v_pred = F.sigmoid(v_pred)
+                # v_pred = F.sigmoid(v_pred)
 
                 # Inference the right sequence  (pi: [MASK], v: [CLS])
                 pi_pred = pi_pred[torch.arange(N, device=self.device), pi_true_idx, :].detach().cpu().numpy()  # [N, C]
-                v_pred = v_pred[torch.arange(N, device=self.device), 0, :].squeeze(-1).detach().cpu().numpy()
+                # v_pred = v_pred[torch.arange(N, device=self.device), 0, :].squeeze(-1).detach().cpu().numpy()
 
             else:
                 raise NotImplementedError
@@ -166,10 +169,17 @@ class BaseTrainer():
                 summary['NDCG@' + str(k)] += ndcg_at_k(pi_true, pi_pred, k) * N
             summary['MRR'] += average_precision_at_k(pi_true, pi_pred, k=C) * N
 
-            if v_pred is not None:
-                summary['ACC'] += np.sum((v_pred >= 0.5) == v_true)
-                summary['MAE'] += np.sum(np.abs(v_pred - v_true))
-                summary['MSE'] += np.sum(np.square(v_pred - v_true))
+            #if v_pred is not None:
+            #    summary['ACC'] += np.sum((v_pred >= 0.5) == v_true)
+            #    summary['MAE'] += np.sum(np.abs(v_pred - v_true))
+            #    summary['MSE'] += np.sum(np.square(v_pred - v_true))
+
+            #    last_match_idx = (match_item_labels[:, -1] != 0).detach().cpu().numpy()
+            #    v_true = v_true[last_match_idx]
+            #    v_pred = v_pred[last_match_idx]
+            #    summary['LAST_ACC'] += np.sum((v_pred >= 0.5) == v_true) * 10
+            #    summary['LAST_MAE'] += np.sum(np.abs(v_pred - v_true)) * 10
+            #    summary['LAST_MSE'] += np.sum(np.square(v_pred - v_true)) * 10
 
             total_eval_num += N
 

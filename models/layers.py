@@ -101,4 +101,4 @@ class EncoderLayer(nn.Module):
         y = self.norm2(x)
         y = self.feed_forward(y)
         x = x + self.dropout2(y)
-        return x
+        return x, attn_weights

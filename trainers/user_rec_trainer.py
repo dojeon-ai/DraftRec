@@ -113,23 +113,3 @@ class UserRecTrainer(BaseTrainer):
         #    pi = pi[torch.arange(N, device=self.device), -1, :].detach().cpu().numpy()
         #    user_item_labels = user_item_labels[torch.arange(N, device=self.device), -1].detach().cpu().numpy()
         #    user_item_labels = np.eye(self.num_items)[user_item_labels]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

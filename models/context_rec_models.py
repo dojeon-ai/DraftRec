@@ -36,7 +36,7 @@ class ContextRec(nn.Module):
                                          GELU())
         self.value_head = nn.Linear(self.embedding_dim, 1)
 
-    def forward(self, x):
+    def forward(self, x, return_attn=False):
         """
         Outputs
             pi: torch.tensor: (N, S, C)
@@ -61,8 +61,10 @@ class ContextRec(nn.Module):
         # attn_mask = ~attn_mask
         # attn_mask = attn_mask.repeat(N, 1, 1)
 
+        attn = torch.zeros((N, S, S), device=self.device)
         for layer in self.encoder:
-            x = layer(x, attn_mask)
+            x, attn_weights = layer(x, attn_mask)
+            attn += torch.mean(attn_weights, 1)
         x = self.norm(x)
         x = x.reshape(N*S, E)
 
@@ -75,5 +77,7 @@ class ContextRec(nn.Module):
         pi_logit = pi_logit + pi_mask
         pi = F.log_softmax(pi_logit, dim=-1)  # log-probability is passed to NLL-Loss
         v = self.value_head(x).reshape(N, S, -1)
-
-        return pi, v
+        if return_attn:
+            return pi, v, attn
+        else:
+            return pi, v

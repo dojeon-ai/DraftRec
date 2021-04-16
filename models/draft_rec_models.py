@@ -66,7 +66,7 @@ class DraftRec(nn.Module):
         attn_mask = attn_mask.repeat(N, 1, 1)
         """
         for layer in self.encoder:
-            x = layer(x, attn_mask)
+            x, _ = layer(x, attn_mask)
         x = self.norm(x)
         x = x.reshape(N*(B+1), E)
 

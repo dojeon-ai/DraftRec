@@ -5,7 +5,7 @@ import random
 from torch.utils.data import Dataset
 
 
-class ContextRecDataset(Dataset):
+class RewardModelDataset(Dataset):
     def __init__(self, args, data, categorical_ids):
         self.args = args
         self.categorical_ids = categorical_ids
@@ -31,14 +31,18 @@ class ContextRecDataset(Dataset):
                 [self.CLS], [self.CLS], [self.CLS], [self.CLS], [self.CLS]
             win_label, item_label = [win], [self.PAD]
             for i, order in enumerate(pick_order):
-                team_id.append(match['User' + str(order)+'_team'])
+                team = match['User' + str(order)+'_team']
+                team_id.append(team)
                 ban_id.append(match['User' + str(order)+'_ban'])
                 user_id.append(match['User'+str(order)+'_id'])
                 item_id.append(match['User'+str(order)+'_champion'])
                 lane_id.append(match['User' + str(order) + '_lane'])
 
-                win_label.append(self.PAD)
-                #win_label.append(win)
+                if team == self.categorical_ids['team']['BLUE']:
+                    win_label.append(win - self.args.label_smooth)
+                else:
+                    win_label.append(1 - win + self.args.label_smooth)
+
                 item_label.append(self.PAD)
 
             team_ids.append(team_id)
@@ -75,22 +79,13 @@ class ContextRecDataset(Dataset):
             team_mask = (team_ids == team).astype(float)
         team_mask[0] = self.CLS
 
-        # blue-team cannot see the 'lane' and 'user' of the red-team and vice-versa
-        lane_ids = np.where(team_mask == 1, lane_ids, self.UNK)
-        user_ids = np.where(team_mask == 1, user_ids, self.UNK)
-
         for b in range(1, B):
-            prob = random.random()
-            if prob < self.args.mask_prob:
-                item = item_ids[b]
+            item_mask_prob = random.random()
+            if item_mask_prob < self.args.mask_item_prob:
                 item_ids[b] = self.MASK
 
-                # Showed slight improvement compared to when we did train UNK tokens.
-                user = user_ids[b]
-                if user == self.UNK:
-                    item_labels[b] = self.PAD
-                else:
-                    item_labels[b] = item
+        # blue-team cannot see the 'user' of the red-team and vice-versa
+        user_ids = np.where(team_mask == 1, user_ids, self.UNK)
 
         team_ids = torch.LongTensor(team_ids)
         ban_ids = torch.LongTensor(ban_ids)

@@ -60,7 +60,7 @@ class UserRec(nn.Module):
         attn_mask = attn_mask.unsqueeze(-1).matmul(attn_mask.unsqueeze(1))
 
         for layer in self.encoder:
-            x = layer(x, attn_mask)
+            x, _ = layer(x, attn_mask)
         x = self.norm(x)
         if embedding:
             return x[torch.arange(N, device=self.device), -1, :].squeeze(1)

@@ -35,6 +35,7 @@ class UserRecDataset(Dataset):
                 win_ids[-1] = self.MASK
                 win_labels[-1] = (win - self.num_special_tokens)
                 win_mask_labels[-1] = 1
+
         elif self.args.model_type == 'bert':
             for s in range(num_padding, len(user_history)):
                 prob = random.random()

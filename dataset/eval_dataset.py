@@ -25,7 +25,7 @@ class EvalDataset():
         num_matches, _ = match_data.shape
         team_ids, ban_ids, user_ids, item_ids, lane_ids, history_ids = [], [], [], [], [], []
         win_labels, item_labels, user_labels = [], [], []
-        for match_idx in tqdm.tqdm(range(num_matches)):
+        for match_idx in range(num_matches):
             match = match_data.iloc[match_idx]
             win = float(match['win'] == 'Win')
 
@@ -64,7 +64,7 @@ class EvalDataset():
         team_ids, ban_ids, user_ids, item_ids, lane_ids, history_ids = [], [], [], [], [], []
         win_labels, item_labels, user_labels = [], [], []
         history_eval_data = []
-        for match in matches:
+        for match in tqdm.tqdm(matches):
             B = self.board_len
             team_id = match[:B].copy()
             ban_id = match[B:2 * B].copy()
@@ -78,7 +78,7 @@ class EvalDataset():
 
             user_histories = []
             mask_histories = []
-            unk_histories = []
+            unk_mask_histories = []
             for b in range(1, B):
                 user_idx = user_id[b]
                 history_idx = history_id[b]
@@ -86,8 +86,8 @@ class EvalDataset():
                 item = item_id[b]
                 win = win_label[0]
 
-                unk_history = self._get_recent_match_history_of_unk(ban_id[1:], lane, item, win)
-                unk_history = self._build_recent_history(unk_history)
+                unk_match_history = self._get_recent_match_history_of_unk(ban_id[1:], lane, item, win)
+                unk_history = self._build_recent_history(unk_match_history)
                 if user_idx != self.UNK:
                     match_history = self._get_recent_match_history(user_history_data, user_idx, history_idx)
                     user_history = self._build_recent_history(match_history)
@@ -95,15 +95,15 @@ class EvalDataset():
                 else:
                     # ban_id[1:]: exclude [CLS] token
                     user_history = unk_history
-                    mask_history = unk_history
+                    mask_history = self._build_recent_history(unk_match_history, mask=True)
                 user_histories.append(user_history)
                 unk_histories.append(unk_history)
                 mask_histories.append(mask_history)
 
             for b in range(1, B):
                 user = user_id[b]
-                if user == self.UNK:
-                    continue
+                #if user == self.UNK:
+                #    continue
                 team_ids.append(team_id)
                 ban_ids.append(ban_id)
                 history_ids.append(history_id)
@@ -112,7 +112,8 @@ class EvalDataset():
                 team_mask = (team_id == team).astype(float)
                 team_mask[0] = 1.0  # [CLS]
 
-                lane_ids.append(np.where(team_mask == 1, lane_id, self.UNK).copy())
+                # lane_ids.append(np.where(team_mask == 1, lane_id, self.UNK).copy())
+                lane_ids.append(lane_id)
                 user_ids.append(np.where(team_mask == 1, user_id, self.UNK).copy())
 
                 cur_item_id = item_id.copy()
@@ -131,14 +132,25 @@ class EvalDataset():
                 # opponent user's histories should be masked
                 cur_user_histories = user_histories.copy()
                 cur_user_histories[b-1] = mask_histories[b-1]
-                for c in range(b, B-1):
+                for c in range(0, B-1):
                     cur_user_team_mask = team_mask[c]
-                    if cur_user_team_mask == 0:
-                        cur_user_histories[c] = unk_histories[c]
+                    if c > b:
+                        if cur_user_team_mask == 0:
+                            cur_user_histories[c] = unk_mask_histories[c]
+                        else:
+                            cur_user_histories[c] = mask_histories[c]
                 cur_user_histories = [torch.stack(feature) for feature in list(map(list, zip(*cur_user_histories)))]
                 history_eval_data.append(cur_user_histories)
 
         # len(match_eval_data) = num_matches * 10
+        team_ids = np.array(team_ids)
+        ban_ids = np.array(ban_ids)
+        user_ids = np.array(user_ids)
+        item_ids = np.array(item_ids)
+        lane_ids = np.array(lane_ids)
+        win_labels = np.array(win_labels)
+        item_labels = np.array(item_labels)
+        user_labels = np.array(user_labels)
         match_eval_data = np.column_stack((team_ids,
                                            ban_ids,
                                            user_ids,
