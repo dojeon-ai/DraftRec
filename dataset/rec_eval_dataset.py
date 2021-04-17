@@ -3,7 +3,7 @@ import tqdm
 import numpy as np
 
 
-class EvalDataset():
+class RecEvalDataset():
     def __init__(self, args, match_data, user_history_data, categorical_ids):
         self.args = args
         self.categorical_ids = categorical_ids
@@ -76,8 +76,11 @@ class EvalDataset():
             item_label = match[7 * B:8 * B].copy()
             user_label = match[8 * B:9 * B].copy()
 
+            # for the same team
             user_histories = []
             mask_histories = []
+            # for the opponent team
+            unk_histories = []
             unk_mask_histories = []
             for b in range(1, B):
                 user_idx = user_id[b]
@@ -88,6 +91,8 @@ class EvalDataset():
 
                 unk_match_history = self._get_recent_match_history_of_unk(ban_id[1:], lane, item, win)
                 unk_history = self._build_recent_history(unk_match_history)
+                unk_mask_history = self._build_recent_history(unk_match_history, mask=True)
+
                 if user_idx != self.UNK:
                     match_history = self._get_recent_match_history(user_history_data, user_idx, history_idx)
                     user_history = self._build_recent_history(match_history)
@@ -95,15 +100,16 @@ class EvalDataset():
                 else:
                     # ban_id[1:]: exclude [CLS] token
                     user_history = unk_history
-                    mask_history = self._build_recent_history(unk_match_history, mask=True)
+                    mask_history = unk_mask_history
                 user_histories.append(user_history)
-                unk_histories.append(unk_history)
                 mask_histories.append(mask_history)
+                unk_histories.append(unk_history)
+                unk_mask_histories.append(unk_mask_history)
 
             for b in range(1, B):
                 user = user_id[b]
-                #if user == self.UNK:
-                #    continue
+                if user == self.UNK:
+                    continue
                 team_ids.append(team_id)
                 ban_ids.append(ban_id)
                 history_ids.append(history_id)
@@ -129,16 +135,24 @@ class EvalDataset():
                 cur_user_label[b] = user
                 user_labels.append(cur_user_label)
 
-                # opponent user's histories should be masked
+                # masking the user histories
                 cur_user_histories = user_histories.copy()
-                cur_user_histories[b-1] = mask_histories[b-1]
-                for c in range(0, B-1):
+                for c in range(1, B):
                     cur_user_team_mask = team_mask[c]
-                    if c > b:
+                    if c < b:
+                        # opponent team's users should be unknown
                         if cur_user_team_mask == 0:
-                            cur_user_histories[c] = unk_mask_histories[c]
+                            cur_user_histories[c-1] = unk_histories[c-1]
                         else:
-                            cur_user_histories[c] = mask_histories[c]
+                            continue
+                    else:
+                        # opponent team's users should be unknown & masked
+                        if cur_user_team_mask == 0:
+                            cur_user_histories[c-1] = unk_mask_histories[c-1]
+                        # same team's users should be masked
+                        else:
+                            cur_user_histories[c-1] = mask_histories[c-1]
+
                 cur_user_histories = [torch.stack(feature) for feature in list(map(list, zip(*cur_user_histories)))]
                 history_eval_data.append(cur_user_histories)
 

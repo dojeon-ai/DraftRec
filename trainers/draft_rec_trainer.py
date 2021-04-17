@@ -27,7 +27,7 @@ class DraftRecTrainer(BaseTrainer):
     def _initialize_optimizer(self):
         optimizer = torch.optim.Adam(self.model.parameters(),
                                      lr=self.args.lr,
-                                     weight_decay=self. args.weight_decay)
+                                     weight_decay=self.args.weight_decay)
         scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,
                                                         max_lr=self.args.lr,
                                                         epochs=self.args.epochs,
@@ -56,20 +56,15 @@ class DraftRecTrainer(BaseTrainer):
                 user_history_x_batch = [feature.to(self.device) for feature in user_history_x_batch]
 
                 (v_true, pi_true, _) = match_y_batch
-                import pdb
-                pdb.set_trace()
                 pi_pred, v_pred = self.model(user_history_x_batch)
                 N, _, C = pi_pred.shape
                 pi_loss = self.pi_criterion(pi_pred.reshape(-1, C), pi_true.reshape(-1))
                 v_loss = self.v_criterion(v_pred[:,0,:].squeeze(-1), v_true[:,0])
-                if e < args.v_start:
-                    loss = pi_loss
-                else:
-                    loss = (1-args.lmbda) * pi_loss + args.lmbda * v_loss
+                loss = (1-args.lmbda) * pi_loss + args.lmbda * v_loss
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), args.clip_grad)
                 self.optimizer.step()
-                # self.scheduler.step()
+                self.scheduler.step()
                 pi_losses.append(pi_loss.item())
                 v_losses.append(v_loss.item())
 

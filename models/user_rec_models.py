@@ -51,7 +51,10 @@ class UserRec(nn.Module):
         lane = self.lane_embedding(lane_ids)
         win = self.win_embedding(win_ids)
 
-        x = item + lane + win
+        if self.args.use_game_specific_info:
+            x = item + lane + win
+        else:
+            x = item
         x = self.position_embedding(x)
         x = self.dropout(x)
 
@@ -76,4 +79,30 @@ class UserRec(nn.Module):
         pi = F.log_softmax(pi_logit, dim=-1)  # log-probability is passed to NLL-Loss
         v = self.value_head(x).reshape(N, S, -1)
 
+        return pi, v
+
+
+class SPOP(nn.Module):
+    def __init__(self, args, categorical_ids, device):
+        super(SPOP, self).__init__()
+        self.args = args
+        self.num_items = len(categorical_ids['champion'])
+        self.num_lanes = len(categorical_ids['lane'])
+        self.device = device
+        self.null = nn.Linear(1, 1)
+
+    def forward(self, x):
+        ban_ids, item_ids, _, _ = x
+        N, S = item_ids.shape
+        C = self.num_items
+        pi_logit = torch.zeros((N, S, C), device=self.device)
+        for idx in range(N):
+            pi_logit[idx] = torch.bincount(item_ids[idx], minlength=self.num_items)
+
+        # banned champion should not be picked
+        pi_mask = torch.zeros_like(pi_logit, device=self.device)
+        pi_mask.scatter_(-1, ban_ids, -1e9)
+        pi_logit = pi_logit + pi_mask
+        pi = F.log_softmax(pi_logit, dim=-1)  # log-probability is passed to NLL-Loss
+        v = torch.zeros((N, S, 1), device=self.device)
         return pi, v

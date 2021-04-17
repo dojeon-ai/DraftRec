@@ -1,6 +1,7 @@
 import numpy as np
 import tqdm
 from torch.utils.data import Dataset
+from collections import defaultdict
 
 
 # TODO: needs to be fixed for new-preprocessed dataset
@@ -9,6 +10,7 @@ class InteractionDataset(Dataset):
         self.args = args
         self.categorical_ids = categorical_ids
         self.data = self._build_dataset(data)
+        self.pop_dict = self._build_pop_dict(data)
 
     def _build_dataset(self, data):
         num_users, num_items = data.shape
@@ -36,7 +38,22 @@ class InteractionDataset(Dataset):
                 item_labels.append(0)
                 scale_labels.append(scale)
 
+        user_ids = np.array(user_ids)
+        item_ids = np.array(item_ids)
+        item_labels = np.array(item_labels)
+        scale_labels = np.array(scale_labels)
+
         return np.column_stack((user_ids, item_ids, item_labels, scale_labels))
+
+    def _build_pop_dict(self, data):
+        num_users, num_items = data.shape
+        pop_dict = defaultdict(list)
+        for user_idx in range(num_users):
+            # since data is very large, directly storing float data is infeasible.
+            row = data[user_idx]
+            pop_dict[user_idx] = row.argsort()[::-1]
+
+        return pop_dict
 
     # noinspection PyMethodMayBeStatic
     # def _build_test_dataset(self, data):

@@ -16,9 +16,9 @@ def preprocess(raw_data):
     # Extract the unique matches
     raw_data = raw_data.drop_duplicates()
     # Only consider the rank games
-    raw_data = raw_data[(raw_data['queueId'] == 420) | (raw_data['queueId'] == 440)]
+    raw_data = raw_data[(raw_data['queueId'] == 420)]
     # Extract the necessary features
-    raw_data = raw_data[['gameVersion', 'gameCreation', 'teams', 'participants', 'participantIdentities']]
+    raw_data = raw_data[['gameVersion', 'gameCreation', 'gameDuration', 'teams', 'participants', 'participantIdentities']]
     raw_data = raw_data[raw_data['gameVersion'] >= '10.23.343.2581'].reset_index(drop=True)
     return raw_data
 
@@ -137,6 +137,7 @@ def create_match_data(data, categorical_ids, columns):
         match = data.iloc[i]
         # Creation
         match_data.loc[i, 'time'] = match['gameCreation']
+        duration = match['gameDuration']
 
         # Version
         version = match['gameVersion']
@@ -196,6 +197,18 @@ def create_match_data(data, categorical_ids, columns):
                 match_data.loc[i, 'User'+str(user_cnt+1)+'_lane'] = lane_to_idx[role]
             else:
                 match_data.loc[i, 'User'+str(user_cnt+1)+'_lane'] = lane_to_idx['UNK']
+
+            stats = participant['stats']
+            kda = (stats['kills'] + stats['assists']) / (stats['deaths'] + 1.0)
+            gold_per_sec = stats['goldEarned'] / duration
+            minion_per_sec = stats['totalMinionsKilled'] / duration
+            enemy_jungle_per_sec = stats['neutralMinionsKilledEnemyJungle'] / duration
+            damage_dealt_per_sec = stats['totalDamageDealt'] / duration
+            damage_taken_per_sec = stats['totalDamageTaken'] / duration
+            vision_score = stats['visionScore']
+            stat = (kda, gold_per_sec, minion_per_sec, enemy_jungle_per_sec,
+                    damage_dealt_per_sec, damage_taken_per_sec, vision_score)
+            match_data.loc[i, 'User'+str(user_cnt+1)+'_stat'] = stat
             user_cnt += 1
     
     return match_data
@@ -238,6 +251,7 @@ def create_user_history_data(args, match_data, categorical_ids):
             user = match['User' + str(p_idx + 1) + '_id']
             item = match['User' + str(p_idx + 1) + '_champion']
             lane = match['User' + str(p_idx + 1) + '_lane']
+            stat = match['User' + str(p_idx + 1) + '_stat']
 
             history = {}
             history['id'] = history_id
@@ -246,6 +260,7 @@ def create_user_history_data(args, match_data, categorical_ids):
             history['item'] = item
             history['bans'] = bans
             history['data_type'] = data_type
+            history['stat'] = stat
 
             # user belongs to blue-team so win should be identical
             if p_idx < 5:
@@ -460,9 +475,9 @@ if __name__=='__main__':
     # Train: 20.11.12 ~ 21.02.09 / Val: 21.02.10 ~ 21.02.12 / Test: 21.02.13 ~ 21.02.15
     parser.add_argument('--train_end_time', type=float, default=1612882800000) # 21.02.10
     parser.add_argument('--val_end_time', type=float, default=1613142000000) # 21.02.13
-    parser.add_argument('--interaction_threshold', type=int, default=20)
+    parser.add_argument('--interaction_threshold', type=int, default=5)
     args = parser.parse_args()
-    file_list = glob.glob(args.data_dir + '*.csv')
+    file_list = glob.glob(args.data_dir + '*.csv')[13:15]  #[10:15]
 
     # 1. Build dictionary
     print('[1. Start building dictionary]')
@@ -506,6 +521,7 @@ if __name__=='__main__':
         columns.append('User'+str(participant_id)+'_champion')
         columns.append('User'+str(participant_id)+'_ban')
         columns.append('User'+str(participant_id)+'_team')
+        columns.append('User'+str(participant_id)+'_stat')
     train_match_data = pd.DataFrame(columns=columns)
     val_match_data = pd.DataFrame(columns=columns)
     test_match_data = pd.DataFrame(columns=columns)
@@ -555,6 +571,8 @@ if __name__=='__main__':
     print('Num val data:', match_data['val'])
     print('Num test data:', match_data['test'])
     print('Finish creating match data')
+    with open('./match_data.pickle', 'wb') as f:
+        pickle.dump(match_data, f)
 
     # 3. Create user-history data
     print('[3. Start creating user-history data]')

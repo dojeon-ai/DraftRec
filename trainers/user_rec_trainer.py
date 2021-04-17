@@ -3,7 +3,7 @@ import wandb
 import torch
 import torch.nn.functional as F
 from common.metrics import *
-from models.user_rec_models import UserRec
+from models.user_rec_models import UserRec, SPOP
 from trainers.base_trainer import BaseTrainer
 
 
@@ -15,7 +15,12 @@ class UserRecTrainer(BaseTrainer):
         self.optimizer, self.scheduler = self._initialize_optimizer()
 
     def _initialize_model(self):
-        model = UserRec(self.args, self.categorical_ids, self.device)
+        if self.args.model_type in ['sas', 'bert']:
+            model = UserRec(self.args, self.categorical_ids, self.device)
+        elif self.args.model_type == 'spop':
+            model = SPOP(self.args, self.categorical_ids, self.device)
+        else:
+            raise NotImplementedError
         return model.to(self.device)
 
     def _initialize_criterion(self):
@@ -49,6 +54,8 @@ class UserRecTrainer(BaseTrainer):
             print('[Epoch:%d]' % e)
             self.model.train()
             for x_batch, y_batch in tqdm.tqdm(self.train_loader):
+                if self.args.model_type == 'spop':
+                    continue
                 self.optimizer.zero_grad()
                 x_batch = [feature.to(self.device) for feature in x_batch]
                 y_batch = [feature.to(self.device) for feature in y_batch]
@@ -58,14 +65,11 @@ class UserRecTrainer(BaseTrainer):
                 N, S, C = pi_pred.shape
                 pi_loss = self.pi_criterion(pi_pred.reshape(N*S, C), pi_true.reshape(-1))
                 v_loss = self.v_criterion(v_pred[v_mask == 1].squeeze(-1), v_true[v_mask == 1])
-                if e < args.v_start:
-                    loss = pi_loss
-                else:
-                    loss = (1-args.lmbda) * pi_loss + args.lmbda * v_loss
+                loss = (1-args.lmbda) * pi_loss + args.lmbda * v_loss
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), args.clip_grad)
                 self.optimizer.step()
-                # self.scheduler.step()
+                self.scheduler.step()
                 pi_losses.append(pi_loss.item())
                 v_losses.append(v_loss.item())
 
