@@ -12,7 +12,6 @@ from common.args import *
 from dataset.interaction_dataset import InteractionDataset
 from dataset.user_rec_dataset import UserRecDataset
 from dataset.draft_rec_dataset import DraftRecDataset
-from dataset.reward_model_dataset import RewardModelDataset
 from dataset.rec_eval_dataset import RecEvalDataset
 
 
@@ -51,7 +50,7 @@ if __name__ == "__main__":
     else:
         raise NotImplementedError
     wandb.login()
-    wandb.init(project='draftRec')
+    wandb.init(project='draftRec', id=wandb.util.generate_id())
     os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(str(args.gpu))
     device = torch.device('cuda' if args.gpu != -1 else 'cpu')
     random.seed(args.seed)
@@ -136,7 +135,7 @@ if __name__ == "__main__":
                               user_history_data,
                               categorical_ids)
     test_data = RecEvalDataset(args,
-                               match_data['test'][:1000],
+                               match_data['test'],
                                user_history_data,
                                categorical_ids)
 

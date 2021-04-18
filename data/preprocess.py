@@ -477,7 +477,7 @@ if __name__=='__main__':
     parser.add_argument('--val_end_time', type=float, default=1613142000000) # 21.02.13
     parser.add_argument('--interaction_threshold', type=int, default=5)
     args = parser.parse_args()
-    file_list = glob.glob(args.data_dir + '*.csv')[13:15]  #[10:15]
+    file_list = glob.glob(args.data_dir + '*.csv')  #[10:15]
 
     # 1. Build dictionary
     print('[1. Start building dictionary]')

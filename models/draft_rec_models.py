@@ -19,6 +19,7 @@ class DraftRec(nn.Module):
 
         self.embedding_dim = args.embedding_dim
         self.cls_embedding = nn.Embedding(1, self.embedding_dim)
+        self.team_embedding = nn.Embedding(2, self.embedding_dim)
         self.position_embedding = PositionalEncoding(self.board_len, self.embedding_dim)
         self.dropout = nn.Dropout(self.args.dropout)
 
@@ -51,6 +52,9 @@ class DraftRec(nn.Module):
         x = [feature.reshape(N*B, *feature.shape[2:]) for feature in x]
         embedding = self.embedder(x, embedding=True)  # [N*B, E]
         embedding = embedding.reshape(N, B, -1)
+        if self.args.use_team_info:
+            team_ids = torch.tensor([0, 1, 1, 0, 0, 1, 1, 0, 0, 1], device=self.device).long().repeat(N).reshape(N, -1)
+            embedding += self.team_embedding(team_ids)
 
         cls = torch.zeros((N, 1), device=self.device).long()
         cls = self.cls_embedding(cls)

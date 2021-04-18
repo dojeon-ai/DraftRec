@@ -86,6 +86,8 @@ class SPOP(nn.Module):
     def __init__(self, args, categorical_ids, device):
         super(SPOP, self).__init__()
         self.args = args
+        self.PAD = 0
+        self.MASK = 1
         self.num_items = len(categorical_ids['champion'])
         self.num_lanes = len(categorical_ids['lane'])
         self.device = device
@@ -97,7 +99,8 @@ class SPOP(nn.Module):
         C = self.num_items
         pi_logit = torch.zeros((N, S, C), device=self.device)
         for idx in range(N):
-            pi_logit[idx] = torch.bincount(item_ids[idx], minlength=self.num_items)
+            item_id = item_ids[idx]
+            pi_logit[idx] = torch.bincount(item_id[item_id != self.PAD][:-1], minlength=self.num_items)
 
         # banned champion should not be picked
         pi_mask = torch.zeros_like(pi_logit, device=self.device)

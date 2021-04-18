@@ -130,15 +130,6 @@ class BaseTrainer():
                 pi_pred = pi_pred[torch.arange(N, device=self.device), -1, :].detach().cpu().numpy()
                 v_pred = v_pred[torch.arange(N, device=self.device), -1, :].squeeze(-1).detach().cpu().numpy()
 
-            elif self.args.op in ['train_context_rec', 'train_reward_model']:
-                pi_true, pi_true_idx = torch.max(match_item_labels, 1)  # [N]
-                pi_true = torch.eye(self.num_items)[pi_true].detach().cpu().numpy()  # [N, C]
-
-                pi_pred, _ = self.model(match_x_batch)
-                pi_pred = torch.exp(pi_pred)
-                # Inference the right sequence  (pi: [MASK])
-                pi_pred = pi_pred[torch.arange(N, device=self.device), pi_true_idx, :].detach().cpu().numpy()  # [N, C]
-
             elif self.args.op == 'train_draft_rec':
                 pi_true, pi_true_idx = torch.max(match_item_labels, 1)  # [N]
                 pi_true = torch.eye(self.num_items)[pi_true].detach().cpu().numpy()  # [N, C]
