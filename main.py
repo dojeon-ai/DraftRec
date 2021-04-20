@@ -118,15 +118,6 @@ if __name__ == "__main__":
                                      categorical_ids)
         from trainers.draft_rec_trainer import DraftRecTrainer as Trainer
 
-    elif args.op == 'train_reward_model':
-        parser = add_reward_model_arguments(parser)
-        args = parser.parse_args()
-        wandb.config.update(args)
-        train_data = RewardModelDataset(args,
-                                       match_data['train'],
-                                       categorical_ids)
-        from trainers.reward_model_trainer import RewardModelTrainer as Trainer
-
     else:
         raise NotImplementedError
 

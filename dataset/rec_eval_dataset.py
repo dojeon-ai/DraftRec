@@ -147,7 +147,7 @@ class RecEvalDataset():
 
         self.statistics_dict = self._create_statistical_label(matches)
 
-        for match in tqdm.tqdm(matches):
+        for match_idx, match in tqdm.tqdm(enumerate(matches)):
             B = self.board_len
             team_id = match[:B].copy()
             ban_id = match[B:2 * B].copy()
@@ -279,6 +279,7 @@ class RecEvalDataset():
         history = {}
         history['bans'] = bans
         history['lane'] = lane
+        history['stat'] = np.array([self.PAD]*self.args.num_stats)
         # Though we are converting item and win to MASK, assign the correct value to avoid confusion
         history['item'] = item
         history['win'] = win + self.num_special_tokens
@@ -287,7 +288,7 @@ class RecEvalDataset():
 
     def _build_recent_history(self, match_history, mask=False):
         # append history to ids
-        ban_ids, item_ids, lane_ids, win_ids = [], [], [], []
+        ban_ids, item_ids, lane_ids, stat_ids, win_ids = [], [], [], [], []
         # win_mask_labels are needed to
         win_labels, win_mask_labels, item_labels = [], [], []
         # append padding if history is less than the max_seq_len
@@ -296,6 +297,7 @@ class RecEvalDataset():
             ban_ids.append([self.PAD] * 10)
             item_ids.append(self.PAD)
             lane_ids.append(self.PAD)
+            stat_ids.append([self.PAD] * self.args.num_stats)
             win_ids.append(self.PAD)
             win_labels.append(self.PAD)
             win_mask_labels.append(0)
@@ -306,6 +308,7 @@ class RecEvalDataset():
             ban_ids.append(history['bans'])
             item_ids.append(history['item'])
             lane_ids.append(history['lane'])
+            stat_ids.append(history['stat'])
             win_ids.append(history['win'])
             win_labels.append(self.PAD)
             win_mask_labels.append(0)
@@ -313,6 +316,7 @@ class RecEvalDataset():
 
         # only mask the last-element
         item = item_ids[-1]
+        stat_ids[-1] = [self.PAD] * self.args.num_stats
         win_ids[-1] = self.MASK
         win_labels[-1] = (history['win'] - self.num_special_tokens)
         win_mask_labels[-1] = 1  # no effect
@@ -320,15 +324,17 @@ class RecEvalDataset():
             item_ids[-1] = self.MASK
             item_labels[-1] = item
 
+        stat_ids = np.array(stat_ids)
         ban_ids = torch.LongTensor(ban_ids)
         item_ids = torch.LongTensor(item_ids)
         lane_ids = torch.LongTensor(lane_ids)
+        stat_ids = torch.FloatTensor(stat_ids)
         win_ids = torch.LongTensor(win_ids)
         win_labels = torch.FloatTensor(win_labels)
         win_mask_labels = torch.FloatTensor(win_mask_labels)
         item_labels = torch.LongTensor(item_labels)
 
-        return (ban_ids, item_ids, lane_ids, win_ids, win_labels, win_mask_labels, item_labels)
+        return (ban_ids, item_ids, lane_ids, stat_ids, win_ids, win_labels, win_mask_labels, item_labels)
 
     def __len__(self):
         return len(self.match_data)
@@ -350,12 +356,13 @@ class RecEvalDataset():
         ban_ids = torch.LongTensor(self.user_history_data[index][0])
         item_ids = torch.LongTensor(self.user_history_data[index][1])
         lane_ids = torch.LongTensor(self.user_history_data[index][2])
-        win_ids = torch.LongTensor(self.user_history_data[index][3])
-        win_labels = torch.FloatTensor(self.user_history_data[index][4])
-        win_mask_labels = torch.FloatTensor(self.user_history_data[index][5])
-        item_labels = torch.LongTensor(self.user_history_data[index][6])
+        stat_ids = torch.FloatTensor(self.user_history_data[index][3])
+        win_ids = torch.LongTensor(self.user_history_data[index][4])
+        win_labels = torch.FloatTensor(self.user_history_data[index][5])
+        win_mask_labels = torch.FloatTensor(self.user_history_data[index][6])
+        item_labels = torch.LongTensor(self.user_history_data[index][7])
 
-        user_history_x = (ban_ids, item_ids, lane_ids, win_ids)
+        user_history_x = (ban_ids, item_ids, lane_ids, stat_ids, win_ids)
         user_history_y = (win_labels, win_mask_labels, item_labels)
 
         return (match_x, match_y), (user_history_x, user_history_y)

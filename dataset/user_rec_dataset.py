@@ -54,6 +54,7 @@ class UserRecDataset(Dataset):
                         win_mask_labels[s] = 1
         else:
             raise NotImplementedError
+        return item_ids, item_labels, win_ids, win_labels, win_mask_labels
 
     def __getitem__(self, index):
         user_idx = index + self.num_special_tokens
@@ -70,7 +71,7 @@ class UserRecDataset(Dataset):
         if not isinstance(user_history, list):
             user_history = [user_history]
         # append history to ids
-        ban_ids, item_ids, lane_ids, win_ids = [], [], [], []
+        ban_ids, item_ids, lane_ids, stat_ids, win_ids = [], [], [], [], []
         # win_mask_labels are needed to
         win_labels, win_mask_labels, item_labels = [], [], []
         # append padding if history is less than the max_seq_len
@@ -80,6 +81,7 @@ class UserRecDataset(Dataset):
             ban_ids.append([self.PAD] * 10)
             item_ids.append(self.PAD)
             lane_ids.append(self.PAD)
+            stat_ids.append([self.PAD]*self.args.num_stats)
             win_ids.append(self.PAD)
             win_labels.append(self.PAD)
             win_mask_labels.append(0)
@@ -90,34 +92,25 @@ class UserRecDataset(Dataset):
             ban_ids.append(history['bans'])
             item_ids.append(history['item'])
             lane_ids.append(history['lane'])
+            stat_ids.append(history['stat'])
             win_ids.append(history['win'])
             win_labels.append(self.PAD)
             win_mask_labels.append(0)
             item_labels.append(self.PAD)
 
         # Mask item
-        for s in range(num_padding, len(user_history)):
-            prob = random.random()
-            if prob < self.args.mask_prob:
-                item = item_ids[s]
-                item_ids[s] = self.MASK
-                item_labels[s] = item
-
-        # Mask win
-        for s in range(num_padding, len(user_history)):
-            prob = random.random()
-            if prob < self.args.mask_prob:
-                win = win_ids[s]
-                win_ids[s] = self.MASK
-                win_labels[s] = (win - self.num_special_tokens)
-                win_mask_labels[s] = 1
+        item_ids, item_labels, win_ids, win_labels, win_mask_labels =\
+            self._mask_item(user_history, num_padding, item_ids, item_labels, win_ids, win_labels, win_mask_labels)
+        stat_ids[-1] = [self.PAD]*self.args.num_stats
+        stat_ids = np.array(stat_ids)
 
         ban_ids = torch.LongTensor(ban_ids)
         item_ids = torch.LongTensor(item_ids)
         lane_ids = torch.LongTensor(lane_ids)
+        stat_ids = torch.FloatTensor(stat_ids)
         win_ids = torch.LongTensor(win_ids)
         win_labels = torch.FloatTensor(win_labels)
         win_mask_labels = torch.FloatTensor(win_mask_labels)
         item_labels = torch.LongTensor(item_labels)
 
-        return (ban_ids, item_ids, lane_ids, win_ids), (win_labels, win_mask_labels, item_labels)
+        return (ban_ids, item_ids, lane_ids, stat_ids, win_ids), (win_labels, win_mask_labels, item_labels)

@@ -83,7 +83,7 @@ class BaseTrainer():
             user_win_mask_labels: (N, B, S)
             user_item_labels: (N, B, S)
             """
-            (user_ban_ids, user_item_ids, user_lane_ids, user_win_ids) = user_history_x_batch
+            (user_ban_ids, user_item_ids, user_lane_ids, user_stat_ids, user_win_ids) = user_history_x_batch
             (user_win_labels, user_win_mask_labels, user_item_labels) = user_history_y_batch
 
             N, B, S = user_item_ids.shape
@@ -107,7 +107,7 @@ class BaseTrainer():
                                         for feature in user_history_x_batch]
                 user_history_y_batch = [feature[torch.arange(N, device=self.device), user_true_idx - 1, :]
                                         for feature in user_history_y_batch]
-                (user_ban_ids, user_item_ids, user_lane_ids, user_win_ids) = user_history_x_batch
+                (user_ban_ids, user_item_ids, user_lane_ids, user_stat_ids, user_win_ids) = user_history_x_batch
                 (user_win_labels, user_win_mask_labels, user_item_labels) = user_history_y_batch
 
                 # get last-item of the user-history
@@ -122,7 +122,7 @@ class BaseTrainer():
                 # value: current item should be given
                 user_item_ids[torch.arange(N, device=self.device), -1] \
                     = user_item_labels[torch.arange(N, device=self.device), -1]
-                user_history_x_batch = (user_ban_ids, user_item_ids, user_lane_ids, user_win_ids)
+                user_history_x_batch = (user_ban_ids, user_item_ids, user_lane_ids, user_stat_ids, user_win_ids)
                 _, v_pred = self.model(user_history_x_batch)
                 v_pred = F.sigmoid(v_pred)
 
@@ -136,8 +136,12 @@ class BaseTrainer():
                 v_true = match_win_labels.cpu().numpy()
                 v_true = v_true[:, 0] # See only 0 since Win label is stored in position of CLS token
 
-                pi_pred, v_pred = self.model(user_history_x_batch)
+                pi_pred, _ = self.model(user_history_x_batch)
                 pi_pred = torch.exp(pi_pred)
+                # value: current item should be given
+                user_history_x_batch[1][torch.arange(N, device=self.device), pi_true_idx-1, -1] = \
+                    user_history_y_batch[2][torch.arange(N, device=self.device), pi_true_idx-1, -1]
+                _, v_pred = self.model(user_history_x_batch)
                 v_pred = F.sigmoid(v_pred)
                 # Inference the right sequence  (pi: [MASK], v: [CLS])
                 pi_pred = pi_pred[torch.arange(N, device=self.device), pi_true_idx, :].detach().cpu().numpy()  # [N, C]

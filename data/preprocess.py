@@ -19,7 +19,7 @@ def preprocess(raw_data):
     raw_data = raw_data[(raw_data['queueId'] == 420)]
     # Extract the necessary features
     raw_data = raw_data[['gameVersion', 'gameCreation', 'gameDuration', 'teams', 'participants', 'participantIdentities']]
-    raw_data = raw_data[raw_data['gameVersion'] >= '10.23.343.2581'].reset_index(drop=True)
+    raw_data = raw_data[raw_data['gameCreation'] >= 1615099616598].reset_index(drop=True)
     return raw_data
 
 
@@ -203,8 +203,8 @@ def create_match_data(data, categorical_ids, columns):
             gold_per_sec = stats['goldEarned'] / duration
             minion_per_sec = stats['totalMinionsKilled'] / duration
             enemy_jungle_per_sec = stats['neutralMinionsKilledEnemyJungle'] / duration
-            damage_dealt_per_sec = stats['totalDamageDealt'] / duration
-            damage_taken_per_sec = stats['totalDamageTaken'] / duration
+            damage_dealt_per_sec = stats['totalDamageDealt'] / (duration * 100)
+            damage_taken_per_sec = stats['totalDamageTaken'] / (duration * 100)
             vision_score = stats['visionScore']
             stat = (kda, gold_per_sec, minion_per_sec, enemy_jungle_per_sec,
                     damage_dealt_per_sec, damage_taken_per_sec, vision_score)
@@ -310,10 +310,9 @@ def create_interaction_data(data, categorical_ids):
     for i in range(len(data)):
         match = data.iloc[i]
         for p_idx in range(num_participants):
-            userIdx = match['User'+str(p_idx+1)+'_id']
-            championIdx = match['User'+str(p_idx+1)+'_champion']
+            userIdx = int(match['User'+str(p_idx+1)+'_id'])
+            championIdx = int(match['User'+str(p_idx+1)+'_champion'])
             interaction_matrix[userIdx][championIdx] += 1
-
     # Convert to the ratio of interaction with champion for each user: not used for memory issue
     # interaction_matrix = interaction_matrix / (np.sum(interaction_matrix, 1, keepdims=True) + 1e-6)
 
@@ -468,16 +467,48 @@ def checksum_missing_lane_values(dataset):
             checksum += 1
     return checksum
 
+def normalize_stats(match_data):
+    train_stats = []
+    val_stats = []
+    test_stats = []
+    for participant_id in range(1, 11):
+        train_stats.append(
+            np.array([np.array(stat) for stat in match_data['train']['User' + str(participant_id) + '_stat'].values]))
+        val_stats.append(
+            np.array([np.array(stat) for stat in match_data['val']['User' + str(participant_id) + '_stat'].values]))
+        test_stats.append(
+            np.array([np.array(stat) for stat in match_data['test']['User' + str(participant_id) + '_stat'].values]))
+
+    train_stats = np.concatenate(train_stats)
+    val_stats = np.concatenate(val_stats)
+    test_stats = np.concatenate(test_stats)
+
+    mu = train_stats.mean(axis=0)
+    std = train_stats.std(axis=0)
+    _, S = train_stats.shape
+    train_stats = ((train_stats - mu) / std).reshape(10, -1, S)
+    val_stats = ((val_stats - mu) / std).reshape(10, -1, S)
+    test_stats = ((test_stats - mu) / std).reshape(10, -1, S)
+
+    for participant_id in range(1, 11):
+        normalized_train_stats = [tuple(stat) for stat in train_stats[participant_id - 1]]
+        normalized_val_stats = [tuple(stat) for stat in val_stats[participant_id - 1]]
+        normalized_test_stats = [tuple(stat) for stat in test_stats[participant_id - 1]]
+        match_data['train']['User' + str(participant_id) + '_stat'] = normalized_train_stats
+        match_data['val']['User' + str(participant_id) + '_stat'] = normalized_val_stats
+        match_data['test']['User' + str(participant_id) + '_stat'] = normalized_test_stats
+
+    return match_data
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='arguments for preprocessing')
-    parser.add_argument('--data_dir', type=str, default='C:/Users/leehojoon/Desktop/projects/draftRec/data/')
+    parser.add_argument('--data_dir', type=str, default='C:/Users/leehojoon/Desktop/projects/draftRec/data_0420/')
     # Train: 20.11.12 ~ 21.02.09 / Val: 21.02.10 ~ 21.02.12 / Test: 21.02.13 ~ 21.02.15
-    parser.add_argument('--train_end_time', type=float, default=1612882800000) # 21.02.10
-    parser.add_argument('--val_end_time', type=float, default=1613142000000) # 21.02.13
+    parser.add_argument('--train_end_time', type=float, default=1618412400212) # 21.04.16
+    parser.add_argument('--val_end_time', type=float, default=1618585200212) # 21.04.17
     parser.add_argument('--interaction_threshold', type=int, default=5)
     args = parser.parse_args()
-    file_list = glob.glob(args.data_dir + '*.csv')  #[10:15]
+    file_list = glob.glob(args.data_dir + '*.csv') #[10:15]
 
     # 1. Build dictionary
     print('[1. Start building dictionary]')
@@ -494,9 +525,9 @@ if __name__=='__main__':
         val_data = preprocessed_data[(preprocessed_data['gameCreation'] >= args.train_end_time)
                                     &((preprocessed_data['gameCreation'] < args.val_end_time))].reset_index(drop=True)
         test_data = preprocessed_data[preprocessed_data['gameCreation'] > args.val_end_time].reset_index(drop=True)
-        #print('Num train data:', len(train_data))
-        #print('Num val data:', len(val_data))
-        #print('Num test data:', len(test_data))
+        print('Num train data:', len(train_data))
+        print('Num val data:', len(val_data))
+        print('Num test data:', len(test_data))
         del preprocessed_data
 
         # 1.3 Append dictionary for designated file
@@ -550,6 +581,16 @@ if __name__=='__main__':
     match_data['val'] = val_match_data.drop_duplicates().reset_index(drop=True)
     match_data['test'] = test_match_data.drop_duplicates().reset_index(drop=True)
 
+    # Drop rows where champ_idx is UNK=3 -> This case only appears in val & test set since there exist no UNK in train
+
+    def delete_UNK_champion_rows(df):
+        champ_columns = df.filter(regex='champion').columns
+        df[champ_columns] = df[champ_columns].replace(3, np.NaN)
+        df = df.dropna().reset_index(drop=True)
+        return df
+    match_data['val'] = delete_UNK_champion_rows(match_data['val'])
+    match_data['test'] = delete_UNK_champion_rows(match_data['test'])
+
     # 2.b) Fill in missing lane values with most probable permutation.
     print("2.2. Start filling missing lanes")
     train_champion_lane_dict = create_chmp_lane_ratio(match_data['train'])
@@ -567,12 +608,14 @@ if __name__=='__main__':
     assert val_checksum == 0
     assert test_checksum == 0
 
+    # normalize stats
+    match_data = normalize_stats(match_data)
+
     print('Num train data:', match_data['train'])
     print('Num val data:', match_data['val'])
     print('Num test data:', match_data['test'])
     print('Finish creating match data')
-    with open('./match_data.pickle', 'wb') as f:
-        pickle.dump(match_data, f)
+
 
     # 3. Create user-history data
     print('[3. Start creating user-history data]')
@@ -583,6 +626,9 @@ if __name__=='__main__':
         pickle.dump(user_history_data, f)
     print('Finish creating user-history data')
 
+    with open('categorical_ids.pickle', 'wb') as f:
+        pickle.dump(categorical_ids, f)
+
     # 4. Create interaction data
     print('[4. Start creating interaction data]')
     interaction_data = {}
@@ -592,6 +638,3 @@ if __name__=='__main__':
     with open('./interaction_data.pickle', 'wb') as f:
         pickle.dump(interaction_data, f)
     print('Finish creating interaction data')
-
-    with open('categorical_ids.pickle', 'wb') as f:
-        pickle.dump(categorical_ids, f)

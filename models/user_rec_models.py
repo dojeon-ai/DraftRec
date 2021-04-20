@@ -23,6 +23,7 @@ class UserRec(nn.Module):
         self.item_embedding = nn.Embedding(self.num_items, self.embedding_dim)
         self.lane_embedding = nn.Embedding(self.num_lanes, self.embedding_dim)
         self.win_embedding = nn.Embedding(self.num_wins, self.embedding_dim)
+        self.stat_embedding = nn.Linear(self.args.num_stats, self.embedding_dim)
         self.position_embedding = PositionalEncoding(self.seq_len, self.embedding_dim)
         self.dropout = nn.Dropout(self.args.dropout)
 
@@ -43,18 +44,23 @@ class UserRec(nn.Module):
             pi: torch.tensor: (N, S, C)
             v: torch.tensor: (N, S, 1)
         """
-        ban_ids, item_ids, lane_ids, win_ids = x
+        ban_ids, item_ids, lane_ids, stat_ids, win_ids = x
         N, S = item_ids.shape
         E = self.embedding_dim
 
         item = self.item_embedding(item_ids)
         lane = self.lane_embedding(lane_ids)
         win = self.win_embedding(win_ids)
+        stat = self.stat_embedding(stat_ids)
 
         if self.args.use_game_specific_info:
             x = item + lane + win
         else:
             x = item
+
+        if self.args.use_stats:
+            x = x + stat
+
         x = self.position_embedding(x)
         x = self.dropout(x)
 
@@ -94,7 +100,7 @@ class SPOP(nn.Module):
         self.null = nn.Linear(1, 1)
 
     def forward(self, x):
-        ban_ids, item_ids, _, _ = x
+        ban_ids, item_ids, _, _, _ = x
         N, S = item_ids.shape
         C = self.num_items
         pi_logit = torch.zeros((N, S, C), device=self.device)

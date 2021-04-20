@@ -52,12 +52,24 @@ class DraftRecTrainer(BaseTrainer):
                 self.optimizer.zero_grad()
                 _, match_y_batch = match_batch
                 match_y_batch = [feature.to(self.device) for feature in match_y_batch]
-                user_history_x_batch, _ = user_history_batch
+                user_history_x_batch, user_history_y_batch = user_history_batch
                 user_history_x_batch = [feature.to(self.device) for feature in user_history_x_batch]
-
+                user_history_y_batch = [feature.to(self.device) for feature in user_history_y_batch]
+                (ban_ids, item_ids, lane_ids, win_ids) = user_history_x_batch
+                (win_labels, win_mask_labels, item_labels) = user_history_y_batch
                 (v_true, pi_true, _) = match_y_batch
-                pi_pred, v_pred = self.model(user_history_x_batch)
-                N, _, C = pi_pred.shape
+                N, _ = pi_true.shape
+
+                turn = torch.argmax(pi_true, 1)-1
+                next_item_ids = item_ids.clone()
+                next_item_ids[torch.arange(N, device=self.device), turn, -1] = \
+                    (item_labels[torch.arange(N, device=self.device), turn, -1])
+                next_user_history_x_batch = (ban_ids, next_item_ids, lane_ids, win_ids)
+
+                # forward & backward
+                pi_pred, _ = self.model(user_history_x_batch)
+                _, v_pred = self.model(next_user_history_x_batch)
+                _, _, C = pi_pred.shape
                 pi_loss = self.pi_criterion(pi_pred.reshape(-1, C), pi_true.reshape(-1))
                 v_loss = self.v_criterion(v_pred[:,0,:].squeeze(-1), v_true[:,0])
                 loss = (1-args.lmbda) * pi_loss + args.lmbda * v_loss
