@@ -46,7 +46,7 @@ class UserRecTrainer(BaseTrainer):
         v_losses = []
         # evaluate the initial-run
         summary = self.evaluate(self.val_loader)
-        best_HR1 = 0
+        best_ACC = 0
         best_epoch = 0
         wandb.log(summary, 0)
         # start training
@@ -75,45 +75,19 @@ class UserRecTrainer(BaseTrainer):
 
             if e % args.evaluate_every == 0:
                 summary = self.evaluate(self.val_loader)
-                if summary['HR@1'] > best_HR1:
-                    best_epoch = e
-                    best_HR1 = summary['HR@1']
                 summary['best_epoch'] = best_epoch
                 summary['pi_loss'] = np.mean(pi_losses)
                 summary['v_loss'] = np.mean(v_losses)
                 wandb.log(summary, e)
-                # self._save_model('model.pt', e)
+                if summary['ACC'] > best_ACC:
+                    best_epoch = e
+                    best_ACC = summary['ACC']
+                    summary = self.evaluate(self.test_loader, prefix='TEST_')
+                    wandb.log(summary, e)
+                    self._save_model('best.pt', e)
                 pi_losses = []
                 v_losses = []
 
-    #def evaluate(self, loader):
-        #total_num_valid_users = 0
-        #for x_batch, y_batch in tqdm.tqdm(loader):
-        #    x_batch = [feature.to(self.device) for feature in x_batch]
-        #    y_batch = [feature.to(self.device) for feature in y_batch]
-        #    (team_ids, ban_ids, user_ids, item_ids, lane_ids, history_ids) = x_batch
-        #    (win_labels, item_labels) = y_batch  # [N,S], [N,S]
-        #
-        #    item_labels, item_labels_idx = torch.max(item_labels, 1)  # [N]
-        #    item_labels = torch.eye(self.num_items)[item_labels].detach().cpu().numpy()  # [N, C]
-        #    UNK = 3
-        #    user_x_batch, user_y_batch = [], []
-        #    for batch_idx, seq_idx in enumerate(item_labels_idx):
-        #        user_idx = user_ids[batch_idx][seq_idx].item()
-        #        history_idx = history_ids[batch_idx][seq_idx].item()
-        #        if user_idx != UNK:
-        #            user_x, user_y = self.train_loader.dataset.get_item_with_history_idx(user_idx, history_idx)
-        #            user_x_batch.append(user_x)
-        #            user_y_batch.append(user_y)
-        #
-        #    user_x_batch = [torch.stack(feature).to(self.device) for feature in list(map(list, zip(*user_x_batch)))]
-        #    user_y_batch = [torch.stack(feature).to(self.device) for feature in list(map(list, zip(*user_y_batch)))]
-        #    (_, _, user_item_labels) = user_y_batch
-        #    pi, v = self.model(user_x_batch)
-        #    pi = torch.exp(pi)
-        #    v = F.sigmoid(v)
-        #    # select the right sequence (pi: [last])
-        #    N, S, C = pi.shape
-        #    pi = pi[torch.arange(N, device=self.device), -1, :].detach().cpu().numpy()
-        #    user_item_labels = user_item_labels[torch.arange(N, device=self.device), -1].detach().cpu().numpy()
-        #    user_item_labels = np.eye(self.num_items)[user_item_labels]
+        summary = self.evaluate(self.test_loader, prefix='TEST_')
+        wandb.log(summary, e)
+        self._save_model('last.pt', e)

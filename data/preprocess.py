@@ -19,7 +19,7 @@ def preprocess(raw_data):
     raw_data = raw_data[(raw_data['queueId'] == 420)]
     # Extract the necessary features
     raw_data = raw_data[['gameVersion', 'gameCreation', 'gameDuration', 'teams', 'participants', 'participantIdentities']]
-    raw_data = raw_data[raw_data['gameCreation'] >= 1615099616598].reset_index(drop=True)
+    raw_data = raw_data[raw_data['gameCreation'] >= 1615042816598].reset_index(drop=True)
     return raw_data
 
 
@@ -503,9 +503,9 @@ def normalize_stats(match_data):
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='arguments for preprocessing')
     parser.add_argument('--data_dir', type=str, default='C:/Users/leehojoon/Desktop/projects/draftRec/data_0420/')
-    # Train: 20.11.12 ~ 21.02.09 / Val: 21.02.10 ~ 21.02.12 / Test: 21.02.13 ~ 21.02.15
-    parser.add_argument('--train_end_time', type=float, default=1618412400212) # 21.04.16
-    parser.add_argument('--val_end_time', type=float, default=1618585200212) # 21.04.17
+    parser.add_argument('--train_end_time', type=float, default=1618306000212) # train:21.03.07 ~ # 21.04.14
+    parser.add_argument('--val_end_time', type=float, default=1618412400212)   # val: 21.04.14 ~ 21.04.15
+    parser.add_argument('--test_end_time', type=float, default=1618585200212)  # test: 21.04.15 ~ 21.04.16
     parser.add_argument('--interaction_threshold', type=int, default=5)
     args = parser.parse_args()
     file_list = glob.glob(args.data_dir + '*.csv') #[10:15]
@@ -524,7 +524,8 @@ if __name__=='__main__':
         train_data = preprocessed_data[(preprocessed_data['gameCreation'] < args.train_end_time)].reset_index(drop=True)
         val_data = preprocessed_data[(preprocessed_data['gameCreation'] >= args.train_end_time)
                                     &((preprocessed_data['gameCreation'] < args.val_end_time))].reset_index(drop=True)
-        test_data = preprocessed_data[preprocessed_data['gameCreation'] > args.val_end_time].reset_index(drop=True)
+        test_data = preprocessed_data[(preprocessed_data['gameCreation'] > args.val_end_time)
+                                      &((preprocessed_data['gameCreation'] < args.test_end_time))].reset_index(drop=True)
         print('Num train data:', len(train_data))
         print('Num val data:', len(val_data))
         print('Num test data:', len(test_data))
@@ -566,7 +567,8 @@ if __name__=='__main__':
         train_data = preprocessed_data[(preprocessed_data['gameCreation'] < args.train_end_time)].reset_index(drop=True)
         val_data = preprocessed_data[(preprocessed_data['gameCreation'] >= args.train_end_time)
                                     &((preprocessed_data['gameCreation'] < args.val_end_time))].reset_index(drop=True)
-        test_data = preprocessed_data[preprocessed_data['gameCreation'] > args.val_end_time].reset_index(drop=True)
+        test_data = preprocessed_data[(preprocessed_data['gameCreation'] > args.val_end_time)
+                                      &((preprocessed_data['gameCreation'] < args.test_end_time))].reset_index(drop=True)
         del preprocessed_data
 
         new_train_match_data = create_match_data(train_data, categorical_ids, columns)
@@ -638,3 +640,6 @@ if __name__=='__main__':
     with open('./interaction_data.pickle', 'wb') as f:
         pickle.dump(interaction_data, f)
     print('Finish creating interaction data')
+
+    with open('./champion_lane_dict.pickle', 'wb') as f:
+        pickle.dump(train_champion_lane_dict, f)

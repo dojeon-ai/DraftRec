@@ -48,7 +48,7 @@ class InteractionTrainer(BaseTrainer):
         # evaluate the initial-run
         summary = self.evaluate(self.val_loader)
         best_HR1 = 0
-        best_HR1_epoch = 0
+        best_epoch = 0
         wandb.log(summary, 0)
         # start training
         for e in range(1, args.epochs+1):
@@ -80,11 +80,17 @@ class InteractionTrainer(BaseTrainer):
 
             if e % args.evaluate_every == 0:
                 summary = self.evaluate(self.val_loader)
-                if summary['HR@1'] > best_HR1:
-                    best_HR1_epoch = e
-                    best_HR1 = summary['HR@1']
-                summary['best_epoch'] = best_HR1_epoch
+                summary['best_epoch'] = best_epoch
                 summary['loss'] = np.mean(losses)
                 wandb.log(summary, e)
-                self._save_model('model.pt', e)
+                if summary['HR@1'] > best_HR1:
+                    best_epoch = e
+                    best_HR1 = summary['HR@1']
+                    summary = self.evaluate(self.test_loader, prefix='TEST_')
+                    wandb.log(summary, e)
+                    self._save_model('best.pt', e)
                 losses = []
+
+        summary = self.evaluate(self.test_loader, prefix='TEST_')
+        wandb.log(summary, e)
+        self._save_model('last.pt', e)

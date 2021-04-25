@@ -22,21 +22,7 @@ class UserRecDataset(Dataset):
         return len(self.data) - self.num_special_tokens
 
     def _mask_item(self, user_history, num_padding, item_ids, item_labels, win_ids, win_labels, win_mask_labels):
-        if self.args.model_type == 'sas':
-            op = random.random()
-            # Mask item
-            if op < 0.5:
-                item = item_ids[-1]
-                item_ids[-1] = self.MASK
-                item_labels[-1] = item
-            # Mask win
-            else:
-                win = win_ids[-1]
-                win_ids[-1] = self.MASK
-                win_labels[-1] = (win - self.num_special_tokens)
-                win_mask_labels[-1] = 1
-
-        elif self.args.model_type == 'bert':
+        if self.args.model_type == 'bert':
             for s in range(num_padding, len(user_history)):
                 prob = random.random()
                 if prob < self.args.mask_prob:
@@ -53,7 +39,19 @@ class UserRecDataset(Dataset):
                         win_labels[s] = (win - self.num_special_tokens)
                         win_mask_labels[s] = 1
         else:
-            raise NotImplementedError
+            op = random.random()
+            # Mask item
+            if op < 0.5:
+                item = item_ids[-1]
+                item_ids[-1] = self.MASK
+                item_labels[-1] = item
+            # Mask win
+            else:
+                win = win_ids[-1]
+                win_ids[-1] = self.MASK
+                win_labels[-1] = (win - self.num_special_tokens)
+                win_mask_labels[-1] = 1
+
         return item_ids, item_labels, win_ids, win_labels, win_mask_labels
 
     def __getitem__(self, index):

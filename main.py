@@ -20,12 +20,15 @@ if __name__ == "__main__":
     warnings.filterwarnings('ignore')
 
     parser = argparse.ArgumentParser(description='arguments for reward model')
-    parser.add_argument('--exp_name', type=str, default='')
+    parser.add_argument('--exp_name', type=str, default='debug')
     parser.add_argument('--model_name', type=str, default='')
     parser.add_argument('--op', default='train_draft_rec',
                         choices=['train_interaction', 'train_user_rec',
                                  'train_draft_rec', 'train_reward_model'])
-    parser.add_argument('--data_type', choices=['toy', 'full'], default='toy')
+    parser.add_argument('--finetune', type=str2bool, default=False)
+    parser.add_argument('--data_type', choices=['toy', 'full', 'local'], default='full')
+    parser.add_argument('--data_batch_size', type=int, default=256)
+    parser.add_argument('--max_seq_len', type=int, default=20)
     parser.add_argument('--interaction_path', type=str, default='/interaction_data.pickle')
     parser.add_argument('--match_path', type=str, default='/match_data.pickle')
     parser.add_argument('--user_history_path', type=str, default='/user_history_data.pickle')
@@ -36,7 +39,7 @@ if __name__ == "__main__":
     parser.add_argument('--debug', type=str2bool, default=False)
     parser.add_argument('--user', type=str, default='hj', choices=['hj', 'dy', 'hs', 'bk'])
     parser.add_argument('--num_threads', type=int, default=1)
-    parser.add_argument('--k_list', type=str2list, default=[1, 5, 10])
+    parser.add_argument('--k_list', type=str2list, default=[1, 3, 10])
     parser.add_argument('--evaluate_every', type=int, default=5)
     args = parser.parse_known_args()[0]
 
@@ -65,16 +68,28 @@ if __name__ == "__main__":
     print('[LOAD DATA]')
     if args.data_type == 'toy':
         data_dir = '/home/nas1_userC/hojoonlee/draftRec/toy_data'
-    else:
+    elif args.data_type == 'full':
         data_dir = '/home/nas1_userC/hojoonlee/draftRec/data'
+    else:
+        data_dir = './data'
+
+    # check if data is already created
+    match_data_path = data_dir + args.match_path
+    batch_data_dir = data_dir + '/batch_' + str(args.data_batch_size) + '/max_seq_len' + str(args.max_seq_len)
+    if os.path.exists(batch_data_dir):
+        match_data = {'train': None,
+                      'val': None,
+                      'test': None}
+    else:
+        os.makedirs(batch_data_dir + '/train')
+        os.makedirs(batch_data_dir + '/val')
+        os.makedirs(batch_data_dir + '/test')
+        with open(match_data_path, 'rb') as f:
+            match_data = pickle.load(f)
 
     interaction_data_path = data_dir + args.interaction_path
     with open(interaction_data_path, 'rb') as f:
         interaction_data = pickle.load(f)
-
-    match_data_path = data_dir + args.match_path
-    with open(match_data_path, 'rb') as f:
-        match_data = pickle.load(f)
 
     user_history_data_path = data_dir + args.user_history_path
     with open(user_history_data_path, 'rb') as f:
@@ -84,10 +99,10 @@ if __name__ == "__main__":
     with open(dict_path, 'rb') as f:
         categorical_ids = pickle.load(f)
 
+
     #############
     ## Trainer ##
     #############
-
     # Initialize data & trainer func
     print('[INITIALIZE DATA LOADER & TRAINER FUNC]')
     if args.op == 'train_interaction':
@@ -115,7 +130,9 @@ if __name__ == "__main__":
         train_data = DraftRecDataset(args,
                                      match_data['train'],
                                      user_history_data,
-                                     categorical_ids)
+                                     categorical_ids,
+                                     batch_data_dir,
+                                     'train')
         from trainers.draft_rec_trainer import DraftRecTrainer as Trainer
 
     else:
@@ -124,27 +141,39 @@ if __name__ == "__main__":
     val_data = RecEvalDataset(args,
                               match_data['val'],
                               user_history_data,
-                              categorical_ids)
+                              categorical_ids,
+                              batch_data_dir,
+                              'val')
     test_data = RecEvalDataset(args,
                                match_data['test'],
                                user_history_data,
-                               categorical_ids)
+                               categorical_ids,
+                               batch_data_dir,
+                               'test')
 
     del interaction_data
     del match_data
 
+    if args.op == 'train_draft_rec':
+        train_batch_size = 1
+    else:
+        train_batch_size = args.batch_size
+
     train_loader = DataLoader(train_data,
-                              batch_size=args.batch_size,
+                              batch_size=train_batch_size,
                               shuffle=True,
                               num_workers=args.num_workers)
     val_loader = DataLoader(val_data,
-                            batch_size=args.batch_size,
+                            batch_size=1,
                             num_workers=args.num_workers)
     test_loader = DataLoader(test_data,
-                             batch_size=args.batch_size,
+                             batch_size=1,
                              num_workers=args.num_workers)
 
     # Start training
     print('[START TRAINING]')
     trainer = Trainer(args, train_loader, val_loader, test_loader, categorical_ids, device)
-    trainer.train()
+    if args.finetune is False:
+        trainer.train()
+    else:
+        trainer.finetune()

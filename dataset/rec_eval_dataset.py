@@ -1,11 +1,13 @@
 import torch
 import tqdm
 import numpy as np
+import pickle
+import os
 from collections import defaultdict
 
 
 class RecEvalDataset():
-    def __init__(self, args, match_data, user_history_data, categorical_ids):
+    def __init__(self, args, match_data, user_history_data, categorical_ids, data_dir, data_type):
         self.args = args
         self.categorical_ids = categorical_ids
         self.board_len = 11
@@ -13,91 +15,36 @@ class RecEvalDataset():
            self.max_seq_len = self.args.max_seq_len
         else:
             self.max_seq_len = 1  # Faster fetch if not used
+        if hasattr(self.args, 'num_stats'):
+           self.num_stats = self.args.num_stats
+        else:
+            self.num_stats = 7  # Faster fetch if not used
         self.num_items = len(categorical_ids['champion'])
         self.PAD = 0
         self.MASK = 1
         self.CLS = 2
         self.UNK = 3
         self.num_special_tokens = 4
-        self.match_data, self.user_history_data = self._build_dataset(match_data, user_history_data)
 
-    def _create_statistical_label(self, match_data):
-        statistical_dict = {4: {},
-                            5: {},
-                            6: {},
-                            7: {},
-                            8: {}}
-        B = self.board_len
-        team_ids = match_data[:, :B]
-        item_ids = match_data[:, 3 * B:4 * B]
-        lane_ids = match_data[:, 4 * B:5 * B]
-        win_labels = match_data[:, 6 * B]
-
-        for lane, _ in statistical_dict.items():
-            matchups = item_ids[lane_ids == lane].reshape(-1, 2)
-            teams = team_ids[lane_ids == lane].reshape(-1, 2)
-            matchup_dict = defaultdict(list)
-            for matchup, team, win in zip(matchups, teams, win_labels):
-                chmp1 = matchup[0]
-                chmp2 = matchup[1]
-                chmp1_team = team[0]
-                chmp2_team = team[1]
-                BLUE = 4
-                if (chmp1, chmp2) in matchup_dict:
-                    if chmp1_team == BLUE:
-                        matchup_dict[(chmp1, chmp2)].append(win)
-                        matchup_dict[chmp1].append(win)
-                        matchup_dict[chmp2].append(1-win)
-                    else:
-                        matchup_dict[(chmp1, chmp2)].append(1-win)
-                        matchup_dict[chmp1].append(1-win)
-                        matchup_dict[chmp2].append(win)
-                elif (chmp2, chmp1) in matchup_dict:
-                    if chmp2_team == BLUE:
-                        matchup_dict[(chmp2, chmp1)].append(win)
-                        matchup_dict[chmp2].append(win)
-                        matchup_dict[chmp1].append(1-win)
-                    else:
-                        matchup_dict[(chmp2, chmp1)].append(1-win)
-                        matchup_dict[chmp2].append(1-win)
-                        matchup_dict[chmp1].append(win)
-                else:
-                    if chmp1_team == BLUE:
-                        matchup_dict[(chmp1, chmp2)] = [win]
-                        matchup_dict[chmp1].append(win)
-                        matchup_dict[chmp2].append(1-win)
-                    else:
-                        matchup_dict[(chmp1, chmp2)] = [1-win]
-                        matchup_dict[chmp1].append(1-win)
-                        matchup_dict[chmp2].append(win)
-
-            statistical_dict[lane] = matchup_dict
-
-        return statistical_dict
-
-    def get_statistical_label(self, lane, chmp1, chmp2=None):
-        reversed_key = False
-        if chmp2 == None:
-            stats = self.statistics_dict[lane][chmp1]
+        self.data_batch_size = self.args.data_batch_size
+        self.data_path = data_dir + '/' + data_type
+        if match_data is not None:
+            match_data, user_history_data = self._build_dataset(match_data, user_history_data)
+            self.num_batches = len(match_data) // self.data_batch_size
+            self.create_batch_dataset(self.data_path, match_data, user_history_data)
         else:
-            if (chmp1, chmp2) in self.statistics_dict:
-                stats = self.statistics_dict[lane][(chmp1, chmp2)]
-            elif (chmp2, chmp1) in self.statistics_dict:
-                stats = self.statistics_dict[lane][(chmp2, chmp1)]
-                reversed_key = True
-            else:
-                raise AssertionError
+            self.num_batches = len(os.listdir(self.data_path)) // 2
 
-        if len(stats) >= self.args.statistic_threshold:
-            if reversed_key:
-                return 1 - np.mean(stats)
-            else:
-                return np.mean(stats)
-        else:
-            return 0.5
-
-    def get_statistical_label_from_board(self, item_ids, lane_ids):
-        pass
+    def create_batch_dataset(self, path, match_data, user_history_data):
+        for idx in range(self.num_batches):
+            match_file = path + '/match_data_' + str(idx) + '.pkl'
+            history_file = path + '/history_data_' + str(idx) + '.pkl'
+            start_batch_idx = idx * self.data_batch_size
+            end_batch_idx = (idx + 1) * self.data_batch_size
+            with open(match_file, 'wb') as f:
+                pickle.dump(match_data[start_batch_idx:end_batch_idx], f)
+            with open(history_file, 'wb') as f:
+                pickle.dump(user_history_data[start_batch_idx:end_batch_idx], f)
 
     # noinspection PyMethodMayBeStatic
     def _build_dataset(self, match_data, user_history_data):
@@ -144,8 +91,6 @@ class RecEvalDataset():
         team_ids, ban_ids, user_ids, item_ids, lane_ids, history_ids = [], [], [], [], [], []
         win_labels, item_labels, user_labels = [], [], []
         history_eval_data = []
-
-        self.statistics_dict = self._create_statistical_label(matches)
 
         for match_idx, match in tqdm.tqdm(enumerate(matches)):
             B = self.board_len
@@ -279,7 +224,7 @@ class RecEvalDataset():
         history = {}
         history['bans'] = bans
         history['lane'] = lane
-        history['stat'] = np.array([self.PAD]*self.args.num_stats)
+        history['stat'] = np.array([self.PAD]*self.num_stats)
         # Though we are converting item and win to MASK, assign the correct value to avoid confusion
         history['item'] = item
         history['win'] = win + self.num_special_tokens
@@ -297,7 +242,7 @@ class RecEvalDataset():
             ban_ids.append([self.PAD] * 10)
             item_ids.append(self.PAD)
             lane_ids.append(self.PAD)
-            stat_ids.append([self.PAD] * self.args.num_stats)
+            stat_ids.append([self.PAD] * self.num_stats)
             win_ids.append(self.PAD)
             win_labels.append(self.PAD)
             win_mask_labels.append(0)
@@ -316,7 +261,7 @@ class RecEvalDataset():
 
         # only mask the last-element
         item = item_ids[-1]
-        stat_ids[-1] = [self.PAD] * self.args.num_stats
+        stat_ids[-1] = [self.PAD] * self.num_stats
         win_ids[-1] = self.MASK
         win_labels[-1] = (history['win'] - self.num_special_tokens)
         win_mask_labels[-1] = 1  # no effect
@@ -337,30 +282,36 @@ class RecEvalDataset():
         return (ban_ids, item_ids, lane_ids, stat_ids, win_ids, win_labels, win_mask_labels, item_labels)
 
     def __len__(self):
-        return len(self.match_data)
+        return self.num_batches
 
     def __getitem__(self, index):
+        with open(self.data_path + '/match_data_' + str(index) + '.pkl', 'rb') as f:
+            match_data = pickle.load(f)
+        with open(self.data_path + '/history_data_' + str(index) + '.pkl', 'rb') as f:
+            user_history_data = pickle.load(f)
+        user_history_data = [torch.stack(feature) for feature in list(map(list, zip(*user_history_data)))]
+
         B = self.board_len
-        team_ids = torch.LongTensor(self.match_data[index][:B])
-        ban_ids = torch.LongTensor(self.match_data[index][B:2*B])
-        user_ids = torch.LongTensor(self.match_data[index][2*B:3*B])
-        item_ids = torch.LongTensor(self.match_data[index][3*B:4*B])
-        lane_ids = torch.LongTensor(self.match_data[index][4*B:5*B])
-        win_labels = torch.FloatTensor(self.match_data[index][5*B:6*B])
-        item_labels = torch.LongTensor(self.match_data[index][6*B:7*B])
-        user_labels = torch.LongTensor(self.match_data[index][7*B:8*B])
+        team_ids = torch.LongTensor(match_data[:, B])
+        ban_ids = torch.LongTensor(match_data[:, B:2*B])
+        user_ids = torch.LongTensor(match_data[:, 2*B:3*B])
+        item_ids = torch.LongTensor(match_data[:, 3*B:4*B])
+        lane_ids = torch.LongTensor(match_data[:, 4*B:5*B])
+        win_labels = torch.FloatTensor(match_data[:, 5*B:6*B])
+        item_labels = torch.LongTensor(match_data[:, 6*B:7*B])
+        user_labels = torch.LongTensor(match_data[:, 7*B:8*B])
 
         match_x = (team_ids, ban_ids, user_ids, item_ids, lane_ids)
         match_y = (win_labels, item_labels, user_labels)
 
-        ban_ids = torch.LongTensor(self.user_history_data[index][0])
-        item_ids = torch.LongTensor(self.user_history_data[index][1])
-        lane_ids = torch.LongTensor(self.user_history_data[index][2])
-        stat_ids = torch.FloatTensor(self.user_history_data[index][3])
-        win_ids = torch.LongTensor(self.user_history_data[index][4])
-        win_labels = torch.FloatTensor(self.user_history_data[index][5])
-        win_mask_labels = torch.FloatTensor(self.user_history_data[index][6])
-        item_labels = torch.LongTensor(self.user_history_data[index][7])
+        ban_ids = torch.LongTensor(user_history_data[0])
+        item_ids = torch.LongTensor(user_history_data[1])
+        lane_ids = torch.LongTensor(user_history_data[2])
+        stat_ids = torch.FloatTensor(user_history_data[3])
+        win_ids = torch.LongTensor(user_history_data[4])
+        win_labels = torch.FloatTensor(user_history_data[5])
+        win_mask_labels = torch.FloatTensor(user_history_data[6])
+        item_labels = torch.LongTensor(user_history_data[7])
 
         user_history_x = (ban_ids, item_ids, lane_ids, stat_ids, win_ids)
         user_history_y = (win_labels, win_mask_labels, item_labels)

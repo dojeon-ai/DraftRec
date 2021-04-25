@@ -54,12 +54,9 @@ class UserRec(nn.Module):
         stat = self.stat_embedding(stat_ids)
 
         if self.args.use_game_specific_info:
-            x = item + lane + win
+            x = item + lane + win + stat
         else:
             x = item
-
-        if self.args.use_stats:
-            x = x + stat
 
         x = self.position_embedding(x)
         x = self.dropout(x)

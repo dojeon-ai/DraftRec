@@ -6,5 +6,5 @@ from dataset.rec_eval_dataset import RecEvalDataset
 
 
 class DraftRecDataset(RecEvalDataset):
-    def __init__(self, args, match_data, user_history_data, categorical_ids):
-        super(DraftRecDataset, self).__init__(args, match_data, user_history_data, categorical_ids)
+    def __init__(self, args, match_data, user_history_data, categorical_ids, data_dir, data_type):
+        super(DraftRecDataset, self).__init__(args, match_data, user_history_data, categorical_ids, data_dir, data_type)

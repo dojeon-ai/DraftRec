@@ -36,7 +36,7 @@ class BaseTrainer():
     def train(self):
         pass
 
-    def evaluate(self, loader):
+    def evaluate(self, loader, prefix=''):
         self.model.eval()
         # initialize metrics
         summary = {}
@@ -50,11 +50,11 @@ class BaseTrainer():
         total_eval_num = 0
         for match_batch, user_history_batch in tqdm.tqdm(loader):
             match_x_batch, match_y_batch = match_batch
-            match_x_batch = [feature.to(self.device) for feature in match_x_batch]
-            match_y_batch = [feature.to(self.device) for feature in match_y_batch]
+            match_x_batch = [feature.to(self.device).squeeze(0) for feature in match_x_batch]
+            match_y_batch = [feature.to(self.device).squeeze(0) for feature in match_y_batch]
             user_history_x_batch, user_history_y_batch = user_history_batch
-            user_history_x_batch = [feature.to(self.device) for feature in user_history_x_batch]
-            user_history_y_batch = [feature.to(self.device) for feature in user_history_y_batch]
+            user_history_x_batch = [feature.to(self.device).squeeze(0) for feature in user_history_x_batch]
+            user_history_y_batch = [feature.to(self.device).squeeze(0) for feature in user_history_y_batch]
             """
             N: batch_size 
             B: board_size
@@ -171,5 +171,10 @@ class BaseTrainer():
 
         for metric, value in summary.items():
             summary[metric] = (value / total_eval_num)
+
+        new_summary = {}
+        for metric, values in summary.items():
+            new_summary[prefix + str(metric)] = summary[metric]
+        summary = new_summary
 
         return summary

@@ -33,7 +33,9 @@ class DraftRec(nn.Module):
         self.norm = LayerNorm(self.embedding_dim, eps=1e-6)
         self.policy_head = nn.Sequential(nn.Linear(self.embedding_dim, self.embedding_dim),
                                          GELU())
-        self.value_head = nn.Linear(self.embedding_dim, 1)
+        self.value_head = nn.Sequential(nn.Linear(self.embedding_dim, self.embedding_dim),
+                                        GELU(),
+                                        nn.Linear(self.embedding_dim, 1))
 
     def forward(self, x):
         """
@@ -46,7 +48,7 @@ class DraftRec(nn.Module):
             pi: torch.tensor: (N, B, C)
             v: torch.tensor: (N, B, 1)
         """
-        (user_ban_ids, user_item_ids, user_lane_ids, user_win_ids) = x
+        (user_ban_ids, user_item_ids, user_lane_ids, user_stat_ids, user_win_ids) = x
         N, B, S = user_item_ids.shape
         E = self.embedding_dim
         x = [feature.reshape(N*B, *feature.shape[2:]) for feature in x]
