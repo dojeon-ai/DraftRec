@@ -2,9 +2,11 @@ from .base import BaseModel
 from ..common.initialization import NormInitializer
 from .blocks.layers import *
 from .blocks.transformer import TransformerBlock
+from .heads import *
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import copy
 
 
 class DraftRec(BaseModel):
@@ -13,6 +15,7 @@ class DraftRec(BaseModel):
         num_blocks = args.num_blocks
         hidden = args.hidden_units
         
+        num_turns = args.num_turns
         num_champions = args.num_champions
         num_roles = args.num_roles
         num_teams = args.num_teams
@@ -26,12 +29,37 @@ class DraftRec(BaseModel):
         self.outcome_embedding = nn.Embedding(num_outcomes, hidden, padding_idx=0)
         self.stat_embedding = nn.Linear(num_stats, hidden)
         
-        self.positional_embedding = PositionalEncoding(max_seq_len, hidden)
+        self.user_positional_embedding = PositionalEncoding(max_seq_len, hidden)
+        self.match_positional_embedding = PositionalEncoding(num_turns, hidden)
+
         self.dropout = nn.Dropout(p=args.dropout)
+        self.user_blocks = nn.ModuleList(
+            [TransformerBlock(args) for _ in range(num_blocks)])
+        self.match_blocks = nn.ModuleList(
+            [TransformerBlock(args) for _ in range(num_blocks)])
+        
+        self.user_output_norm = LayerNorm(hidden)
+        self.match_output_norm = LayerNorm(hidden)
+        
+        # policy: (B, H) -> (B, C), value: (B, H) -> (B, 1)
+        self.policy_head = DotProductPredictionHead(self.champion_embedding, hidden, num_champions)
+        self.value_head = LinearPredictionHead(hidden, 1) 
+        
+        self.apply(NormInitializer(hidden))
         
     @classmethod
     def code(cls):
         return 'draftrec'
+    
+    def _init_head(self, head_type, d_model, d_out):
+        if head_type == 'linear':
+            head = LinearPredictionHead(hidden, d_model, d_out)
+        elif head_type == 'dot':
+            emb = self.champion_embedding
+            head = DotProductPredictionHead(emb, d_model, d_out)
+        else:
+            raise NotImplemented
+        return head
         
     def forward(self, batch):
         """
@@ -46,10 +74,10 @@ class DraftRec(BaseModel):
             teams: (B, T)
             bans: (B, T)
             champion_masks: (B, T)
-            player_masks: (B, T)
-            turn: (,)
-            outcome: (,)
-            target_champion: (,)
+            user_masks: (B, T)
+            turn: (B)
+            outcome: (B)
+            target_champion: (B)
             
             user_champions: (B, T, S)
             user_roles: (B, T, S)
@@ -57,62 +85,57 @@ class DraftRec(BaseModel):
             user_stats: (B, T, S, ST)
         """
         B, T, S, ST = batch['user_stats'].shape
+        H = self.args.hidden_units
         
+        # user_embedding: (B, T, S, H)
+        user_embedding = self.champion_embedding(batch['user_champions'])
+        user_embedding += self.role_embedding(batch['user_roles'])
+        user_embedding += self.outcome_embedding(batch['user_outcomes'])
+        user_embedding += self.stat_embedding(batch['user_stats'])
+        user_embedding = user_embedding.reshape(B*T, S, H)
+        user_embedding = self.user_positional_embedding(user_embedding)
+        user_embedding = self.dropout(user_embedding)
         
-        import pdb
-        pdb.set_trace()
+        # user_body
+        for block in self.user_blocks:
+            user_embedding = block(user_embedding, attn_mask=None)
+        user_embedding = user_embedding.reshape(B, T, S, H)
+        user_embedding = user_embedding[:, :, -1, :]
+        user_embedding = self.user_output_norm(user_embedding)
         
-        #user_champions = batch['user_champions']
+        # match_embedding: (B, T, H)
+        champion_masks = batch['champion_masks'].unsqueeze(-1)
+        user_masks = batch['user_masks'].unsqueeze(-1)
         
+        match_embedding = self.champion_embedding(batch['champions']) * (1-champion_masks)
+        match_embedding += self.role_embedding(batch['roles'])
+        match_embedding += self.team_embedding(batch['teams'])
+        match_embedding += user_embedding * (1-user_masks)
+        match_embedding = self.match_positional_embedding(match_embedding)
+        match_embedding = self.dropout(match_embedding)
         
-        #champion_embedding = 
-        #role_embedding
-        #team_embedding
-        
-        
-        
-        
-        
-        
-        
-        """
-        (user_ban_ids, user_item_ids, user_lane_ids, user_stat_ids, user_win_ids) = x
-        N, B, S = user_item_ids.shape
-        E = self.embedding_dim
-        x = [feature.reshape(N*B, *feature.shape[2:]) for feature in x]
-        embedding = self.embedder(x, embedding=True)  # [N*B, E]
-        embedding = embedding.reshape(N, B, -1)
-        if self.args.use_team_info:
-            team_ids = torch.tensor([0, 1, 1, 0, 0, 1, 1, 0, 0, 1], device=self.device).long().repeat(N).reshape(N, -1)
-            embedding += self.team_embedding(team_ids)
+        # match_body: (B, T, H)
+        for block in self.match_blocks:
+            match_embedding = block(match_embedding, attn_mask=None)
+        match_embedding = self.match_output_norm(match_embedding) 
 
-        cls = torch.zeros((N, 1), device=self.device).long()
-        cls = self.cls_embedding(cls)
-        x = torch.cat((cls, embedding), 1)
-        x = self.position_embedding(x)
-        x = self.dropout(x)
-
-        attn_mask = None
-        #attn_mask = (torch.arange(S+1).to(self.device)[None, :] <= (torch.arange(S)+1).to(self.device)[:, None]).float()
-        #attn_mask = attn_mask.unsqueeze(2).matmul(attn_mask.unsqueeze(1)).bool()
-        #attn_mask = ~attn_mask
-        #attn_mask = attn_mask.repeat(N, 1, 1)
-        for layer in self.encoder:
-            x, _ = layer(x, attn_mask)
-        x = self.norm(x)
-        x = x.reshape(N*(B+1), E)
-
-        pi_logit = self.policy_head(x)
-        item_embed = self.embedder.item_embedding(torch.arange(self.num_items, device=self.device))
-        pi_logit = pi_logit.matmul(item_embed.T).reshape(N, (B+1), -1)
-        # banned champion should not be picked
-        pi_mask = torch.zeros_like(pi_logit, device=self.device)
-        match_ban_ids = user_ban_ids[torch.arange(N, device=self.device), 0, -1, :]
-        match_ban_ids = torch.cat((torch.zeros(N, 1, device=self.device).long(), match_ban_ids), 1)
-        pi_mask.scatter_(-1, match_ban_ids.repeat(1,1,(B+1)).reshape(N,(B+1),(B+1)), -1e9)
-        pi_logit = pi_logit + pi_mask
-        pi = F.log_softmax(pi_logit, dim=-1)  # log-probability is passed to NLL-Loss
-        v = self.value_head(x).reshape(N, (B+1), -1)
-
+        # policy_head: (B, T, H) -> (B, H) -> (B, C)
+        turn_idx = copy.deepcopy(batch['turn'])
+        # assume the last index to be the first turn
+        turn_idx[turn_idx > T] = 1
+        turn_idx = turn_idx - 1
+        # repeat index to gather 
+        # (https://medium.com/analytics-vidhya/understanding-indexing-with-pytorch-gather-33717a84ebc4)
+        turn_idx = turn_idx.repeat(1, H).unsqueeze(1)
+        current_user_embedding = torch.gather(match_embedding, 1, turn_idx)
+        current_user_embedding = current_user_embedding.squeeze(1)
+        pi = self.policy_head(current_user_embedding)
+        # mask the banned champions
+        pi[torch.arange(B)[:, None], batch['bans']] = -1e9
+        
+        # value_head: (B, H) -> (B)
+        # average pooling
+        match_embedding = torch.mean(match_embedding, axis=1)
+        v = self.value_head(match_embedding)
+        
         return pi, v
-        """
