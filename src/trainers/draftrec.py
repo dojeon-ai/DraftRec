@@ -1,5 +1,4 @@
 from .base import BaseTrainer
-from ..common.metric import recalls_and_ndcgs_for_ks
 import torch
 import torch.nn as nn
 import numpy as np

@@ -23,7 +23,7 @@ num_outcomes: null
 num_stats: null
 window_size: 100
 # trainer
-trainer_type: pop
+trainer_type: draftrec
 device: cuda
 use_parallel: false
 num_workers: 4  # larger number of workers induce higher i/o bottleneck

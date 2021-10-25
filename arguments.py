@@ -82,7 +82,7 @@ class Parser:
 
     def parse_trainer(self):
         parser = argparse.ArgumentParser(allow_abbrev=False)
-        parser.add_argument('--trainer_type', type=str, choices=['interaction', 'sequential', 'match'], help='Selects the trainer for the experiment')
+        parser.add_argument('--trainer_type', type=str, choices=['draftrec'], help='Selects the trainer for the experiment')
         parser.add_argument('--device', type=str)
         parser.add_argument('--use_parallel', type=str2bool, help='If true, the program uses all visible cuda devices with DataParallel')
         parser.add_argument('--num_workers', type=int)

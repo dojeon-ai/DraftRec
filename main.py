@@ -9,6 +9,7 @@ from typing import List
 from arguments import Parser
 from src.dataloaders import init_dataloader
 from src.models import init_model
+from src.trainers import init_trainer
 
 def warn(*args, **kwargs):
     pass
@@ -62,10 +63,10 @@ def main(sys_argv: List[str] = None):
     model = init_model(args)
     
     # Trainer
-    trainer = init_trainer(args)
+    trainer = init_trainer(args, train_dataloader, val_dataloader, test_dataloader, model)
     
     #for batch in train_dataloader:
-    #    model(batch)
+    #    model(batch, train_dataloader, val_dataloader, test_dataloader, model)
     
 if __name__ == "__main__":
     main()

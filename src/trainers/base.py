@@ -1,5 +1,5 @@
 from ..common.logger import LoggerService, AverageMeterSet
-from ..common.metric import *
+from ..common.metrics import *
 import torch
 import torch.nn as nn
 import torch.optim as optim
