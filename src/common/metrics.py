@@ -2,10 +2,10 @@ import numpy as np
 from sklearn.metrics import ndcg_score
 
 
-def precision_at_k(y_true, y_score, k=3, reduction=True):
+def precision_at_k(y_true, y_score, k, reduction=True):
     """
-    :param y_true: type: (np.array), shape:(n, d), desc: ground-truth relevance
-    :param y_score: type:(np.array), shape:(n, d), desc: predicted relevance
+    :param y_score: type:(np.array), shape:(n,d), desc: predicted relevance
+    :param y_true: type: (np.array), shape:(n,d), desc: ground-truth relevance
     :param k: type:(int), desc:number of retrieved items
     :return: pr@k
     """
@@ -26,12 +26,12 @@ def precision_at_k(y_true, y_score, k=3, reduction=True):
         return pr
 
 
-def average_precision_at_k(y_true, y_score, k=3, reduction=True):
+def average_precision_at_k(y_true, y_score, k, reduction=True):
     """
     equivalent to reciprocal-rank if there exists one ground truth item
 
-    :param y_true: type: (np.array), shape:(n,d), desc: ground-truth relevance
     :param y_score: type:(np.array), shape:(n,d), desc: predicted relevance
+    :param y_true: type: (np.array), shape:(n,d), desc: ground-truth relevance
     :param k: type:(int), desc:number of retrieved items
     :return: AP@k or RR@k
     """
@@ -58,12 +58,12 @@ def average_precision_at_k(y_true, y_score, k=3, reduction=True):
         return ap
 
 
-def recall_at_k(y_true, y_score, k=3, reduction=True):
+def recall_at_k(y_true, y_score, k, reduction=True):
     """
     equivalent to hit-ratio if there exists one ground truth item
 
-    :param y_true: type: (np.array), shape:(n,d), desc: ground-truth relevance
     :param y_score: type:(np.array), shape:(n,d), desc: predicted relevance
+    :param y_true: type: (np.array), shape:(n,d), desc: ground-truth relevance
     :param k: type:(int), desc:number of retrieved items
     :return: Recall@k or HR@k
     """
@@ -82,18 +82,49 @@ def recall_at_k(y_true, y_score, k=3, reduction=True):
         return recall
 
 
-def ndcg_at_k(y_true, y_score, k=3, reduction=True):
+def ndcg_at_k(y_true, y_score, k, reduction=True):
     """
-    :param y_true: type: (np.array), shape:(n,d), desc: ground-truth relevance
     :param y_score: type:(np.array), shape:(n,d), desc: predicted relevance
+    :param y_true: type: (np.array), shape:(n,d), desc: ground-truth relevance
     :param k: type:(int), desc:number of retrieved items
     :return: NDCG@k
     """
     if reduction:
-        return ndcg_score(y_true, y_score, k)
+        return ndcg_score(y_true, y_score, k=k)
     else:
         raise NotImplementedError
+        
 
+def get_recommendation_metrics_for_ks(y_score, y_true, ks=[]):
+    metrics = {}
+    cnt = len(y_score)
+    for k in ks:
+        metrics['HR@' + str(k)] = (recall_at_k(y_true, y_score, k), cnt)
+        metrics['NDCG@' + str(k)] = (ndcg_at_k(y_true, y_score, k), cnt)
+    
+    return metrics
+
+def get_win_prediction_metrics(y_score, y_true, is_draft_finished):
+    """
+    :param y_score: type:(np.array), shape:(n,), desc: predicted win probability
+    :param y_true: type: (np.array), shape:(n,), desc: ground-truth win-rate
+    :param is_draft_finished: type: (np.array), shape:(n,)
+    :return metrics: {}
+    """
+    metrics = {}
+    cnt = len(y_true)
+    metrics['ACC'] = (np.mean((y_score >= 0.5) == y_true), cnt)
+    metrics['MAE'] = (np.mean(np.abs(y_score - y_true)), cnt)
+    metrics['MSE'] = (np.mean(np.square(y_score - y_true)), cnt)
+
+    cnt = np.sum(is_draft_finished)
+    y_score = y_score[is_draft_finished]
+    y_true = y_true[is_draft_finished]
+    metrics['FIN_ACC'] = (np.mean((y_score >= 0.5) == y_true), cnt)
+    metrics['FIN_MAE'] = (np.mean(np.abs(y_score - y_true)), cnt)
+    metrics['FIN_MSE'] = (np.mean(np.square(y_score - y_true)), cnt)
+        
+    return metrics
 
 if __name__=='__main__':
     # [1. Test with a single interaction]

@@ -43,23 +43,13 @@ class DraftRec(BaseModel):
         
         # policy: (B, H) -> (B, C), value: (B, H) -> (B, 1)
         self.policy_head = DotProductPredictionHead(self.champion_embedding, hidden, num_champions)
-        self.value_head = LinearPredictionHead(hidden, 1) 
+        self.value_head = LinearPredictionHead(2*hidden, 1) 
         
         self.apply(NormInitializer(hidden))
         
     @classmethod
     def code(cls):
         return 'draftrec'
-    
-    def _init_head(self, head_type, d_model, d_out):
-        if head_type == 'linear':
-            head = LinearPredictionHead(hidden, d_model, d_out)
-        elif head_type == 'dot':
-            emb = self.champion_embedding
-            head = DotProductPredictionHead(emb, d_model, d_out)
-        else:
-            raise NotImplemented
-        return head
         
     def forward(self, batch):
         """
@@ -67,6 +57,7 @@ class DraftRec(BaseModel):
         T: num_turns (i.e., 10 in LOL)
         S: max_seq_len
         ST: num_stats
+        C: number of champions
         
         [Params]
             champions: (B, T)
@@ -83,6 +74,11 @@ class DraftRec(BaseModel):
             user_roles: (B, T, S)
             user_outcomes (B, T, S)
             user_stats: (B, T, S, ST)
+        
+        [Output]
+            un-normalized scores (i.e., logits)
+            pi: (B, C)
+            v: (B, 1)
         """
         B, T, S, ST = batch['user_stats'].shape
         H = self.args.hidden_units
@@ -121,7 +117,8 @@ class DraftRec(BaseModel):
 
         # policy_head: (B, T, H) -> (B, H) -> (B, C)
         turn_idx = copy.deepcopy(batch['turn'])
-        # assume the last index to be the first turn
+        # for the full-match data, fill the current_user_embedding with any value 
+        # (will be neither trained nor evaluated)
         turn_idx[turn_idx > T] = 1
         turn_idx = turn_idx - 1
         # repeat index to gather 
@@ -135,7 +132,11 @@ class DraftRec(BaseModel):
         
         # value_head: (B, H) -> (B)
         # average pooling
-        match_embedding = torch.mean(match_embedding, axis=1)
+        team_mask = (batch['teams'] - self.args.num_special_tokens).unsqueeze(-1)
+        blue_team_embedding = torch.mean((1 - team_mask) * match_embedding, axis=1)
+        purple_team_embedding = torch.mean(team_mask * match_embedding, axis=1)
+        match_embedding = torch.cat((blue_team_embedding, purple_team_embedding), 1)
+        #match_embedding = torch.mean(match_embedding, axis=1)
         v = self.value_head(match_embedding)
         
         return pi, v

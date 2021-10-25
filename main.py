@@ -64,6 +64,7 @@ def main(sys_argv: List[str] = None):
     
     # Trainer
     trainer = init_trainer(args, train_dataloader, val_dataloader, test_dataloader, model)
+    trainer.train()
     
     #for batch in train_dataloader:
     #    model(batch, train_dataloader, val_dataloader, test_dataloader, model)

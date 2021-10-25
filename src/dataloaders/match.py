@@ -37,9 +37,12 @@ class MatchDataset(torch.utils.data.Dataset):
     def populate_indices(self):
         index2match_and_turn = {}
         idx = 0
-        # self.num_turns + 2 to train the model with full-match information
+        # self.num_turns + 3 to train the model with full-match information
+        # (i.e., LOL)
+        # turn: 11 -> BLUE-side full information
+        # turn: 12 -> PURPLE-side full information
         for match_idx in range(len(self.match_df)):
-            for turn in range(1, self.num_turns+2):
+            for turn in range(1, self.num_turns+3):
                 index2match_and_turn[idx] = (match_idx, turn)
                 idx += 1
         
@@ -65,7 +68,7 @@ class MatchDataset(torch.utils.data.Dataset):
         user_masks = np.zeros(T)
         
         # match-level output (if turn > self.num_turns, do not train the policy network)
-        outcome, target_champion = None, None
+        outcome, target_champion, is_draft_finished = None, None, None
         
         # user-level input
         user_champions = np.zeros((T, S))
@@ -111,12 +114,19 @@ class MatchDataset(torch.utils.data.Dataset):
         # champions over than the current turn to the end turn must be masked
         champion_masks[turn-1:] = 1
         # users from the opponent team must be masked
-        # after the last turn, train in terms of the first team
-        if turn-1 == T:
-            cur_user_team = teams[0]
+        if turn > T:
+            if (turn - T) == 1:
+                cur_user_team = self.args.num_special_tokens
+            elif (turn - T) == 2:
+                cur_user_team = self.args.num_special_tokens + 1
+            else:
+                raise ValueError
             target_champion = self.args.PAD
+            is_draft_finished = 1
         else:
             cur_user_team = teams[turn-1]
+            is_draft_finished = 0
+            
         user_masks = 1 - (teams == cur_user_team).astype(float)
         
         d = {
@@ -128,8 +138,9 @@ class MatchDataset(torch.utils.data.Dataset):
             'champion_masks': torch.from_numpy(champion_masks).float(),
             'user_masks': torch.from_numpy(user_masks).float(),
             'turn': torch.LongTensor([turn]),
-            'outcome': torch.LongTensor([outcome]),
+            'outcome': torch.FloatTensor([outcome]),
             'target_champion': torch.LongTensor([target_champion]),
+            'is_draft_finished': torch.BoolTensor([is_draft_finished]),
             # user
             'user_champions':torch.from_numpy(user_champions).long(),  
             'user_roles':torch.from_numpy(user_roles).long(),

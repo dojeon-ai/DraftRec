@@ -17,3 +17,5 @@ class BaseModel(nn.Module, metaclass=ABCMeta):
             self.module.load_state_dict(model_state)
         else:
             self.load_state_dict(model_state)
+            
+    # TODO: forward와 inference (train vs test)

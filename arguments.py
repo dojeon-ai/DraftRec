@@ -82,7 +82,7 @@ class Parser:
 
     def parse_trainer(self):
         parser = argparse.ArgumentParser(allow_abbrev=False)
-        parser.add_argument('--trainer_type', type=str, choices=['draftrec'], help='Selects the trainer for the experiment')
+        parser.add_argument('--trainer_type', type=str, choices=['match'], help='Selects the trainer for the experiment')
         parser.add_argument('--device', type=str)
         parser.add_argument('--use_parallel', type=str2bool, help='If true, the program uses all visible cuda devices with DataParallel')
         parser.add_argument('--num_workers', type=int)
@@ -91,6 +91,7 @@ class Parser:
         parser.add_argument('--lr', type=float, help='Learning rate')
         parser.add_argument('--weight_decay', type=float, help='l2 regularization')
         parser.add_argument('--momentum', type=float, help='sgd momentum')
+        parser.add_argument('--lmbda', type=float, help='lambda to balance the policy loss and value loss')
         # regularization
         parser.add_argument('--clip_grad_norm', type=float)
         parser.add_argument('--dropout', type=float, help='Dropout probability')

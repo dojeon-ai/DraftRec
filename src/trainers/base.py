@@ -1,5 +1,4 @@
 from ..common.logger import LoggerService, AverageMeterSet
-from ..common.metrics import *
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -73,6 +72,9 @@ class BaseTrainer(metaclass=ABCMeta):
 
     @abstractmethod
     def calculate_metrics(self, batch):
+        """
+        metrics: {key: (value, cnt)}
+        """
         pass
 
     def train(self):
@@ -116,10 +118,10 @@ class BaseTrainer(metaclass=ABCMeta):
             batch = {k:v.to(self.device) for k, v in batch.items()}
 
             self.optimizer.zero_grad()
-            loss, extra_info = self.calculate_loss(batch)
+            loss, extra_metrics = self.calculate_loss(batch)
             average_meter_set.update('loss', loss.item())
-            for k, v in extra_info.items():
-                average_meter_set.update(k, v)
+            for k, v in extra_metrics.items():
+                average_meter_set.update(k, v[0], n=v[1])
             
             loss.backward()
             if self.clip_grad_norm is not None:
@@ -152,9 +154,8 @@ class BaseTrainer(metaclass=ABCMeta):
                 batch = {k:v.to(self.device) for k, v in batch.items()}
                 metrics = self.calculate_metrics(batch)
                 
-                # TODO: check last match index accuracy!
                 for k, v in metrics.items():
-                    average_meter_set.update(k, v, n=len(batch))
+                    average_meter_set.update(k, v[0], n=v[1])
 
         log_data = {'step': self.steps}
         log_data.update(average_meter_set.averages())
