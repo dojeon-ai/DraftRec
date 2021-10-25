@@ -62,8 +62,10 @@ def main(sys_argv: List[str] = None):
     model = init_model(args)
     
     # Trainer
-    for batch in train_dataloader:
-        model(batch)
+    trainer = init_trainer(args)
+    
+    #for batch in train_dataloader:
+    #    model(batch)
     
 if __name__ == "__main__":
     main()
