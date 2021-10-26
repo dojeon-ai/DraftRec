@@ -10,9 +10,9 @@ model_type: draftrec
 train_dataloader_type: null
 val_dataloader_type: null
 test_dataloader_type: null
-train_batch_size: 256
-val_batch_size: 256
-test_batch_size: 256
+train_batch_size: 512
+val_batch_size: 512
+test_batch_size: 512
 max_seq_len: 100
 num_special_tokens: 4
 num_turns: 10
@@ -36,7 +36,7 @@ lmbda: 0.5
 clip_grad_norm: 5.0
 dropout: 0.1
 # epochs
-num_epochs: 20
+num_epochs: 50
 # evaluation
 metric_ks:
 - 1

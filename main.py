@@ -3,8 +3,11 @@ import os
 import sys
 import warnings
 import pickle
+import tqdm
+import numpy as np
 from dotmap import DotMap
 from typing import List
+from multiprocessing import Manager
 
 from arguments import Parser
 from src.dataloaders import init_dataloader
@@ -45,8 +48,13 @@ def main(sys_argv: List[str] = None):
     dataset_path = args.local_data_folder + '/' + args.dataset_type
     with open(dataset_path + '/match_df.pickle', 'rb') as f:
         match_df = pickle.load(f)
-    with open(dataset_path + '/user_history_dict.pickle', 'rb') as f:
-        user_history_dict = pickle.load(f)
+    #with open(dataset_path + '/user_history_dict.pickle', 'rb') as f:
+    #    user_history_dict = pickle.load(f)
+    with open(dataset_path + '/feature_to_array_idx.pickle', 'rb') as f:
+        feature_to_array_idx = pickle.load(f)
+    with open(dataset_path + '/user_id_to_array_idx.pickle', 'rb') as f:
+        user_id_to_array_idx = pickle.load(f)
+    user_history_array = np.load(dataset_path + '/user_history_array.npy')
     print('[Finish loading the dataset]')
     
     # TODO: remove this with categorical ids
@@ -57,17 +65,22 @@ def main(sys_argv: List[str] = None):
     args.num_stats = 43    
     
     # DataLoader
-    train_dataloader, val_dataloader, test_dataloader = init_dataloader(args, match_df, user_history_dict)
+    train_dataloader, val_dataloader, test_dataloader = init_dataloader(args, 
+                                                                        match_df, 
+                                                                        user_history_array, 
+                                                                        user_id_to_array_idx, 
+                                                                        feature_to_array_idx)
 
     # Model
     model = init_model(args)
     
     # Trainer
-    trainer = init_trainer(args, train_dataloader, val_dataloader, test_dataloader, model)
+    trainer = init_trainer(args, 
+                           train_dataloader, 
+                           val_dataloader, 
+                           test_dataloader, 
+                           model)
     trainer.train()
-    
-    #for batch in train_dataloader:
-    #    model(batch, train_dataloader, val_dataloader, test_dataloader, model)
     
 if __name__ == "__main__":
     main()
