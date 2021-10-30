@@ -25,16 +25,19 @@ def main(sys_argv: List[str] = None):
     configs = Parser(sys_argv).parse()
     args = DotMap(configs, _dynamic=False)
     # Registry
-    if args.model_type in ['random', 'pop', 'nmf']:
+    if args.model_type in ['random', 'spop', 'pop', 'nmf']:
         args.train_dataloader_type = 'interaction'
         args.trainer_type = 'interaction'
         
     elif args.model_type in ['sasrec', 'sasrec_moba']:
         args.train_dataloader_type = 'sequential'
         args.trainer_type = 'sequential'
-        
-    elif args.model_type in ['optmatch', 'draftrec']:
-        args.train_dataloader_type = 'match'
+    
+    elif args.model_type in ['lr', 'hoi', 'nac', 'optmatch', 'draftrec']:
+        if args.use_full_info:
+            args.train_dataloader_type = 'full_match'
+        else:
+            args.train_dataloader_type = 'match'
         args.trainer_type = 'match'
         
     else:
@@ -48,8 +51,8 @@ def main(sys_argv: List[str] = None):
     dataset_path = args.local_data_folder + '/' + args.dataset_type
     with open(dataset_path + '/match_df.pickle', 'rb') as f:
         match_df = pickle.load(f)
-    #with open(dataset_path + '/user_history_dict.pickle', 'rb') as f:
-    #    user_history_dict = pickle.load(f)
+    with open(dataset_path + '/categorical_ids.pickle', 'rb') as f:
+        categorical_ids = pickle.load(f)
     with open(dataset_path + '/feature_to_array_idx.pickle', 'rb') as f:
         feature_to_array_idx = pickle.load(f)
     with open(dataset_path + '/user_id_to_array_idx.pickle', 'rb') as f:
@@ -58,12 +61,15 @@ def main(sys_argv: List[str] = None):
     print('[Finish loading the dataset]')
     
     # TODO: remove this with categorical ids
-    args.num_champions = 200
-    args.num_roles = 10
-    args.num_teams = 10
-    args.num_outcomes = 10
-    args.num_stats = 43    
-    
+    args.num_champions = len(categorical_ids['champion'])
+    args.num_roles = len(categorical_ids['role'])
+    args.num_teams = len(categorical_ids['team'])
+    args.num_outcomes = len(categorical_ids['win'])
+    if args.dataset_type == 'lol':
+        args.num_stats = 43    
+    elif args.dataset_type == 'dota':
+        args.num_stats = 26
+        
     # DataLoader
     train_dataloader, val_dataloader, test_dataloader = init_dataloader(args, 
                                                                         match_df, 

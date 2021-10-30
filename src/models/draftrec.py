@@ -43,7 +43,7 @@ class DraftRec(BaseModel):
         
         # policy: (B, H) -> (B, C), value: (B, H) -> (B, 1)
         self.policy_head = DotProductPredictionHead(self.champion_embedding, hidden, num_champions)
-        self.value_head = LinearPredictionHead(2*hidden, 1) 
+        self.value_head = LinearPredictionHead(hidden, 1) 
         
         self.apply(NormInitializer(hidden))
         
@@ -111,6 +111,9 @@ class DraftRec(BaseModel):
         match_embedding = self.dropout(match_embedding)
         
         # match_body: (B, T, H)
+        #team_mask = (batch['teams'] - self.args.num_special_tokens).unsqueeze(-1)
+        #attn_mask = (team_mask.float().matmul(team_mask.permute(0, 2, 1).float()) +
+        #             (1-team_mask).float().matmul((1-team_mask).permute(0, 2, 1).float())).unsqueeze(1)
         for block in self.match_blocks:
             match_embedding = block(match_embedding, attn_mask=None)
         match_embedding = self.match_output_norm(match_embedding) 
@@ -135,8 +138,7 @@ class DraftRec(BaseModel):
         team_mask = (batch['teams'] - self.args.num_special_tokens).unsqueeze(-1)
         blue_team_embedding = torch.mean((1 - team_mask) * match_embedding, axis=1)
         purple_team_embedding = torch.mean(team_mask * match_embedding, axis=1)
-        match_embedding = torch.cat((blue_team_embedding, purple_team_embedding), 1)
-        #match_embedding = torch.mean(match_embedding, axis=1)
+        match_embedding = blue_team_embedding - purple_team_embedding
         v = self.value_head(match_embedding)
         
         return pi, v
