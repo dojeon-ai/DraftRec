@@ -25,10 +25,15 @@ def main(sys_argv: List[str] = None):
     configs = Parser(sys_argv).parse()
     args = DotMap(configs, _dynamic=False)
     # Registry
-    if args.model_type in ['random', 'pop', 'nmf']:
+
+    if args.model_type in ['nmf', 'dmf', 'random', 'pop', 'spop']:
         args.train_dataloader_type = 'interaction'
-        args.trainer_type = 'interaction'
-        
+        if args.model_type in ['nmf', 'dmf']:
+            args.trainer_type = 'interaction'
+        elif args.model_type in ['random', 'pop']:
+            args.trainer_type = 'pop'
+        elif args.model_type in ['spop']:
+            args.trainer_type = 'spop'
     elif args.model_type in ['sasrec', 'sasrec_moba']:
         args.train_dataloader_type = 'sequential'
         args.trainer_type = 'sequential'
@@ -48,8 +53,6 @@ def main(sys_argv: List[str] = None):
     dataset_path = args.local_data_folder + '/' + args.dataset_type
     with open(dataset_path + '/match_df.pickle', 'rb') as f:
         match_df = pickle.load(f)
-    #with open(dataset_path + '/user_history_dict.pickle', 'rb') as f:
-    #    user_history_dict = pickle.load(f)
     with open(dataset_path + '/feature_to_array_idx.pickle', 'rb') as f:
         feature_to_array_idx = pickle.load(f)
     with open(dataset_path + '/user_id_to_array_idx.pickle', 'rb') as f:
@@ -62,8 +65,9 @@ def main(sys_argv: List[str] = None):
     args.num_roles = 10
     args.num_teams = 10
     args.num_outcomes = 10
-    args.num_stats = 43    
-    
+    args.num_stats = 26    
+    args.num_users = len(user_id_to_array_idx.keys())
+
     # DataLoader
     train_dataloader, val_dataloader, test_dataloader = init_dataloader(args, 
                                                                         match_df, 

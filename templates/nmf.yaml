@@ -2,10 +2,10 @@
 seed: 0
 pilot: false
 local_data_folder: ./data
-wandb_project_name: draftrec
-exp_name: 10_25
+wandb_project_name: dota
+exp_name: 10_29
 dataset_type: lol
-model_type: draftrec
+model_type: nmf
 # dataloader
 train_dataloader_type: null
 val_dataloader_type: null
@@ -45,11 +45,13 @@ metric_ks:
 - 5
 - 10
 - 20
-best_metric: ACC
+best_metric: HR@1
 # model
 model_init_seed: 0
 hidden_units: 64
 num_blocks: 2
 head_type: dot
 num_heads: 1
+# Interaction models
 num_hidden_layers: 2
+min_prob: 1e-6

@@ -55,8 +55,8 @@ class Parser:
         parser.add_argument('--local_data_folder', type=str, help='Folder that contains raw/preprocessed data')
         parser.add_argument('--wandb_project_name', type=str, help='Project name for wandb')
         parser.add_argument('--exp_name', type=str, help='experiment name to identify')
-        parser.add_argument('--dataset_type', type=str, choices=['lol' 'dota'], help='select the dataset to use for the experiment')
-        parser.add_argument('--model_type', type=str, choices=['pop', 'nmf', 'sasrec', 'draftrec'], help='Selects the model for the experiment')
+        parser.add_argument('--dataset_type', type=str, choices=['lol', 'dota'], help='select the dataset to use for the experiment')
+        parser.add_argument('--model_type', type=str, choices=['pop', 'nmf', 'dmf', 'spop', 'sasrec', 'draftrec'], help='Selects the model for the experiment')
         args = parser.parse_known_args(self.sys_argv)[0]
         return vars(args)
 
@@ -76,6 +76,7 @@ class Parser:
         parser.add_argument('--num_teams', type=int, help="number of stats for each user in the match")
         parser.add_argument('--num_outcomes', type=int, help="number of stats for each user in the match")
         parser.add_argument('--num_stats', type=int, help="number of stats for each user in the match")
+        parser.add_argument('--num_negatives', type=int, help="number of stats for each user in the match")
         parser.add_argument('--window_size', type=int, help="window size to slide over the user's entire item sequences to obtain subsequences for training")
         args = parser.parse_known_args(self.sys_argv)[0]
         return vars(args)
@@ -111,6 +112,7 @@ class Parser:
         parser.add_argument('--num_blocks', type=int, help='Number of transformer layers')
         parser.add_argument('--head_type', type=str, choices=['linear', 'dot'], help='Prediction heads on top of logits')
         parser.add_argument('--num_heads', type=int, help='Number of attention heads')
-        
+        parser.add_argument('--num_hidden_layers', type=int, help='Number of hidden layers for FC models')        
+        parser.add_argument('--min_prob', type=int, help='minimum probability for DMF')  
         args = parser.parse_known_args(self.sys_argv)[0]
         return vars(args)

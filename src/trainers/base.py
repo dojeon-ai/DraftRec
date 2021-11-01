@@ -79,6 +79,7 @@ class BaseTrainer(metaclass=ABCMeta):
 
     def train(self):
         # validation at an initialization
+        #TODO: Release this annotation
         val_log_data = self.validate(mode='val')
         val_log_data['epoch'] = 0
         self.logger.log_val(val_log_data)
@@ -93,7 +94,7 @@ class BaseTrainer(metaclass=ABCMeta):
             val_log_data = self.validate(mode='val')
             val_log_data['epoch'] = epoch
             self.logger.log_val(val_log_data)            
-            
+
             # update the best_model
             cur_metric_value = val_log_data[self.best_metric]
             if cur_metric_value > self.best_metric_value:
@@ -114,7 +115,9 @@ class BaseTrainer(metaclass=ABCMeta):
         average_meter_set = AverageMeterSet()
         self.model.train()
         for batch in tqdm(self.train_loader):
+
             batch_size = next(iter(batch.values())).size(0)
+            # Need to send to cuda before forwarding in the model.
             batch = {k:v.to(self.device) for k, v in batch.items()}
 
             self.optimizer.zero_grad()
