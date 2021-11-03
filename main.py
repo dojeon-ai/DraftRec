@@ -1,179 +1,95 @@
 import argparse
 import os
+import sys
 import warnings
-import random
 import pickle
+import tqdm
 import numpy as np
-import torch
-import wandb
-from torch.utils.data import DataLoader
-from common.args import *
-# Dataset
-from dataset.interaction_dataset import InteractionDataset
-from dataset.user_rec_dataset import UserRecDataset
-from dataset.draft_rec_dataset import DraftRecDataset
-from dataset.rec_eval_dataset import RecEvalDataset
+from dotmap import DotMap
+from typing import List
+from multiprocessing import Manager
 
+from arguments import Parser
+from src.dataloaders import init_dataloader
+from src.models import init_model
+from src.trainers import init_trainer
 
-if __name__ == "__main__":
-    np.set_printoptions(suppress=True)
-    warnings.filterwarnings('ignore')
+def warn(*args, **kwargs):
+    pass
+warnings.warn = warn
 
-    parser = argparse.ArgumentParser(description='arguments for reward model')
-    parser.add_argument('--exp_name', type=str, default='debug')
-    parser.add_argument('--model_name', type=str, default='')
-    parser.add_argument('--op', default='train_draft_rec',
-                        choices=['train_interaction', 'train_user_rec',
-                                 'train_draft_rec', 'train_reward_model'])
-    parser.add_argument('--finetune', type=str2bool, default=False)
-    parser.add_argument('--data_type', choices=['toy', 'full', 'local'], default='full')
-    parser.add_argument('--data_batch_size', type=int, default=256)
-    parser.add_argument('--max_seq_len', type=int, default=20)
-    parser.add_argument('--interaction_path', type=str, default='/interaction_data.pickle')
-    parser.add_argument('--match_path', type=str, default='/match_data.pickle')
-    parser.add_argument('--user_history_path', type=str, default='/user_history_data.pickle')
-    parser.add_argument('--dict_path', type=str, default='/categorical_ids.pickle')
-    parser.add_argument('--num_workers', type=int, default=4, help="number of workers for dataloader")
-    parser.add_argument('--gpu', type=int, default=-1, help='index of the gpu device to use (cpu if -1)')
-    parser.add_argument('--seed', type=int, default=random.randint(0, 9999))
-    parser.add_argument('--debug', type=str2bool, default=False)
-    parser.add_argument('--user', type=str, default='hj', choices=['hj', 'dy', 'hs', 'bk'])
-    parser.add_argument('--num_threads', type=int, default=1)
-    parser.add_argument('--k_list', type=str2list, default=[1, 3, 10])
-    parser.add_argument('--evaluate_every', type=int, default=5)
-    args = parser.parse_known_args()[0]
+def main(sys_argv: List[str] = None):
+    # Parser
+    if sys_argv is None:
+        sys_argv = sys.argv[1:]
+    configs = Parser(sys_argv).parse()
+    args = DotMap(configs, _dynamic=False)
+    # Registry
+    if args.model_type in ['random', 'spop', 'pop', 'nmf', 'dmf']:
+        args.train_dataloader_type = 'interaction'
+        if args.model_type in ['nmf', 'dmf']:
+            args.trainer_type = 'interaction'
+        elif args.model_type in ['random', 'pop']:
+            args.trainer_type = 'pop'
+        elif args.model_type in ['spop']:
+            args.trainer_type = 'spop'
 
-    #############
-    ## Configs ##
-    #############
-    print('[INITIALIZE ENVIRONMENTAL CONFIGS]')
-    if args.user == 'hj':
-        wandb_id = '96022b49a4e5c639895ba1e229022e087f79c84a'
-        user_id = 'joonleesky'
+    elif args.model_type in ['sasrec', 'sasrec_moba', 'lr', 'hoi', 'nac', 'optmatch', 'draftrec']:
+        if args.use_full_info:
+            args.train_dataloader_type = 'full_match'
+        else:
+            args.train_dataloader_type = 'match'
+        
     else:
         raise NotImplementedError
-    wandb.login()
-    wandb.init(project='draftRec', id=wandb.util.generate_id())
-    os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(str(args.gpu))
-    device = torch.device('cuda' if args.gpu != -1 else 'cpu')
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
-    torch.set_num_threads(args.num_threads)
-
-    ################
-    ## DataLoader ##
-    ################
-    # Initialize raw-data & loader
-    print('[LOAD DATA]')
-    if args.data_type == 'toy':
-        data_dir = '/home/nas1_userC/hojoonlee/draftRec/toy_data'
-    elif args.data_type == 'full':
-        data_dir = '/home/nas1_userC/hojoonlee/draftRec/data'
-    else:
-        data_dir = './data'
-
-    # check if data is already created
-    match_data_path = data_dir + args.match_path
-    batch_data_dir = data_dir + '/batch_' + str(args.data_batch_size) + '/max_seq_len' + str(args.max_seq_len)
-    if os.path.exists(batch_data_dir):
-        match_data = {'train': None,
-                      'val': None,
-                      'test': None}
-    else:
-        os.makedirs(batch_data_dir + '/train')
-        os.makedirs(batch_data_dir + '/val')
-        os.makedirs(batch_data_dir + '/test')
-        with open(match_data_path, 'rb') as f:
-            match_data = pickle.load(f)
-
-    interaction_data_path = data_dir + args.interaction_path
-    with open(interaction_data_path, 'rb') as f:
-        interaction_data = pickle.load(f)
-
-    user_history_data_path = data_dir + args.user_history_path
-    with open(user_history_data_path, 'rb') as f:
-        user_history_data = pickle.load(f)
-
-    dict_path = data_dir + args.dict_path
-    with open(dict_path, 'rb') as f:
+        
+    args.val_dataloader_type = 'match'
+    args.test_dataloader_type = 'match'
+        
+    # Dataset
+    print('[Start loading the dataset]')
+    dataset_path = args.local_data_folder + '/' + args.dataset_type
+    with open(dataset_path + '/match_df.pickle', 'rb') as f:
+        match_df = pickle.load(f)
+    with open(dataset_path + '/categorical_ids.pickle', 'rb') as f:
         categorical_ids = pickle.load(f)
+    with open(dataset_path + '/feature_to_array_idx.pickle', 'rb') as f:
+        feature_to_array_idx = pickle.load(f)
+    with open(dataset_path + '/user_id_to_array_idx.pickle', 'rb') as f:
+        user_id_to_array_idx = pickle.load(f)
+    user_history_array = np.load(dataset_path + '/user_history_array.npy')
+    print('[Finish loading the dataset]')
+    
+    # TODO: remove this with categorical ids
+    args.num_champions = len(categorical_ids['champion'])
+    args.num_roles = len(categorical_ids['role'])
+    args.num_teams = len(categorical_ids['team'])
+    args.num_outcomes = len(categorical_ids['win'])
+    if args.dataset_type == 'lol':
+        args.num_stats = 43    
+    elif args.dataset_type == 'dota':
+        args.num_stats = 26
+
+    # DataLoader
+    train_dataloader, val_dataloader, test_dataloader = init_dataloader(args, 
+                                                                        match_df, 
+                                                                        user_history_array, 
+                                                                        user_id_to_array_idx, 
+                                                                        feature_to_array_idx)
+
+    # Model
+    model = init_model(args)
+    
+    # Trainer
+    trainer = init_trainer(args, 
+                           train_dataloader, 
+                           val_dataloader, 
+                           test_dataloader, 
+                           model)
+    trainer.train()
+    
+if __name__ == "__main__":
+    main()
 
 
-    #############
-    ## Trainer ##
-    #############
-    # Initialize data & trainer func
-    print('[INITIALIZE DATA LOADER & TRAINER FUNC]')
-    if args.op == 'train_interaction':
-        parser = add_interaction_arguments(parser)
-        args = parser.parse_args()
-        wandb.config.update(args)
-        train_data = InteractionDataset(args,
-                                        interaction_data['train'],
-                                        categorical_ids)
-        from trainers.interaction_trainer import InteractionTrainer as Trainer
 
-    elif args.op == 'train_user_rec':
-        parser = add_user_rec_arguments(parser)
-        args = parser.parse_args()
-        wandb.config.update(args)
-        train_data = UserRecDataset(args,
-                                    user_history_data,
-                                    categorical_ids)
-        from trainers.user_rec_trainer import UserRecTrainer as Trainer
-
-    elif args.op == 'train_draft_rec':
-        parser = add_draft_rec_arguments(parser)
-        args = parser.parse_args()
-        wandb.config.update(args)
-        train_data = DraftRecDataset(args,
-                                     match_data['train'],
-                                     user_history_data,
-                                     categorical_ids,
-                                     batch_data_dir,
-                                     'train')
-        from trainers.draft_rec_trainer import DraftRecTrainer as Trainer
-
-    else:
-        raise NotImplementedError
-
-    val_data = RecEvalDataset(args,
-                              match_data['val'],
-                              user_history_data,
-                              categorical_ids,
-                              batch_data_dir,
-                              'val')
-    test_data = RecEvalDataset(args,
-                               match_data['test'],
-                               user_history_data,
-                               categorical_ids,
-                               batch_data_dir,
-                               'test')
-
-    del interaction_data
-    del match_data
-
-    if args.op == 'train_draft_rec':
-        train_batch_size = 1
-    else:
-        train_batch_size = args.batch_size
-
-    train_loader = DataLoader(train_data,
-                              batch_size=train_batch_size,
-                              shuffle=True,
-                              num_workers=args.num_workers)
-    val_loader = DataLoader(val_data,
-                            batch_size=1,
-                            num_workers=args.num_workers)
-    test_loader = DataLoader(test_data,
-                             batch_size=1,
-                             num_workers=args.num_workers)
-
-    # Start training
-    print('[START TRAINING]')
-    trainer = Trainer(args, train_loader, val_loader, test_loader, categorical_ids, device)
-    if args.finetune is False:
-        trainer.train()
-    else:
-        trainer.finetune()
