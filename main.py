@@ -28,12 +28,8 @@ def main(sys_argv: List[str] = None):
     if args.model_type in ['random', 'spop', 'pop', 'nmf']:
         args.train_dataloader_type = 'interaction'
         args.trainer_type = 'interaction'
-        
-    elif args.model_type in ['sasrec', 'sasrec_moba']:
-        args.train_dataloader_type = 'sequential'
-        args.trainer_type = 'sequential'
-    
-    elif args.model_type in ['lr', 'hoi', 'nac', 'optmatch', 'draftrec']:
+
+    elif args.model_type in ['sasrec', 'sasrec_moba', 'lr', 'hoi', 'nac', 'optmatch', 'draftrec']:
         if args.use_full_info:
             args.train_dataloader_type = 'full_match'
         else:

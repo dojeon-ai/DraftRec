@@ -15,16 +15,16 @@ def run_experiment(experiment):
 
 
 if __name__ == '__main__':
-    default = {'--exp_name': '1029_tune_nac_lol'}
+    default = {'--exp_name': '1029_tune_optmatch_lol'}
 
     seeds = ['0']
-    temps = ['nac_lol']
-    lrs = ['0.01', '0.001']
-    wds = ['0.01', '0.001', '0.0001']
-    hus = ['32', '64', '128']
+    temps = ['optmatch_lol']
+    lrs = ['0.001']
+    wds = ['0.0001']
+    hus = ['32', '64']
     
-    num_devices = 3
-    num_exp_per_device = 2
+    num_devices = 2
+    num_exp_per_device = 1
     pool_size = num_devices * num_exp_per_device
 
     experiments = []
@@ -37,11 +37,13 @@ if __name__ == '__main__':
         exp['--weight_decay'] = wd
         exp['--hidden_units'] = hu
         
-        exp['--device'] = 'cuda:' + str(int(device % num_devices))
+        device_idx = device % num_devices
+        if device_idx == 1:
+            device_idx = 2
+        exp['--device'] = 'cuda:' + str(int(device_idx))
+        
         experiments.append(exp)
         device += 1
-        
-        
         
     pool = Pool(pool_size)
     stdouts = pool.map(run_experiment, experiments, chunksize=1)    

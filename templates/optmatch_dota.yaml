@@ -47,7 +47,7 @@ metric_ks:
 best_metric: ACC
 # model
 model_init_seed: 0
-hidden_units: 128
+hidden_units: 64
 num_blocks: 1
 head_type: dot
 num_heads: 1
