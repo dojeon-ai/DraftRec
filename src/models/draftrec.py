@@ -124,6 +124,7 @@ class DraftRec(BaseModel):
         # (will be neither trained nor evaluated)
         turn_idx[turn_idx > T] = 1
         turn_idx = turn_idx - 1
+
         # repeat index to gather 
         # (https://medium.com/analytics-vidhya/understanding-indexing-with-pytorch-gather-33717a84ebc4)
         turn_idx = turn_idx.repeat(1, H).unsqueeze(1)

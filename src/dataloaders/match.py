@@ -60,6 +60,7 @@ class MatchDataset(torch.utils.data.Dataset):
         ST = self.num_stats
         
         # match-level input
+        user_ids = np.zeros(T)
         champions = np.zeros(T)
         roles = np.zeros(T)
         teams = np.zeros(T)
@@ -80,10 +81,13 @@ class MatchDataset(torch.utils.data.Dataset):
             user_id, user_history_idx = match['User' + str(t)]
             
             # match-level input
+
             champion = self.user_history_dict.get_value(user_id, user_history_idx, 'champion')
             role = self.user_history_dict.get_value(user_id, user_history_idx, 'role')
             team = self.user_history_dict.get_value(user_id, user_history_idx, 'team')
+            arr_user_id = self.user_history_dict.user_id_to_array_idx[user_id]
             
+            user_ids[t-1] = arr_user_id
             champions[t-1] = champion
             roles[t-1] = role
             teams[t-1] = team
@@ -125,9 +129,10 @@ class MatchDataset(torch.utils.data.Dataset):
             is_draft_finished = 0
             
         user_masks = 1 - (teams == cur_user_team).astype(float)
-        
+
         d = {
             # match
+            'user_ids': torch.from_numpy(user_ids).long(),
             'champions':torch.from_numpy(champions).long(), 
             'roles':torch.from_numpy(roles).long(),
             'teams':torch.from_numpy(teams).long(),

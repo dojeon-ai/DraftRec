@@ -25,16 +25,20 @@ def main(sys_argv: List[str] = None):
     configs = Parser(sys_argv).parse()
     args = DotMap(configs, _dynamic=False)
     # Registry
-    if args.model_type in ['random', 'spop', 'pop', 'nmf']:
+    if args.model_type in ['random', 'spop', 'pop', 'nmf', 'dmf']:
         args.train_dataloader_type = 'interaction'
-        args.trainer_type = 'interaction'
+        if args.model_type in ['nmf', 'dmf']:
+            args.trainer_type = 'interaction'
+        elif args.model_type in ['random', 'pop']:
+            args.trainer_type = 'pop'
+        elif args.model_type in ['spop']:
+            args.trainer_type = 'spop'
 
     elif args.model_type in ['sasrec', 'sasrec_moba', 'lr', 'hoi', 'nac', 'optmatch', 'draftrec']:
         if args.use_full_info:
             args.train_dataloader_type = 'full_match'
         else:
             args.train_dataloader_type = 'match'
-        args.trainer_type = 'match'
         
     else:
         raise NotImplementedError
@@ -65,7 +69,7 @@ def main(sys_argv: List[str] = None):
         args.num_stats = 43    
     elif args.dataset_type == 'dota':
         args.num_stats = 26
-        
+
     # DataLoader
     train_dataloader, val_dataloader, test_dataloader = init_dataloader(args, 
                                                                         match_df, 

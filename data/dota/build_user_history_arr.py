@@ -8,13 +8,12 @@ import numpy as np
 def main():
     # Dataset
     print('[Start loading the dataset]')
-    with open('/home/dongyoonhwang/draftRec/data/lol_user_history_data.pickle', 'rb') as f:
+    with open('/home/dongyoonhwang/draftRec/data/dota/dota_user_history_data.pickle', 'rb') as f:
         user_history_dict = pickle.load(f)
     print('[Finish loading the dataset]')
-    
-    num_users = 62466
-    max_history_len = 1145
-    num_features = 57
+    num_users = len(user_history_dict.keys())
+    max_history_len = np.array([len(i) for i in user_history_dict.values()]).max()
+    num_features = 41
     
     user_history_array = np.zeros((num_users, max_history_len, num_features), dtype=np.float32)
     user_id_to_array_idx = {}
@@ -24,7 +23,7 @@ def main():
         'team': (2, 3),
         'ban': (3, 13),
         'win': (13, 14),
-        'stat': (14, 57)
+        'stat': (14, 40)
     }
     
     user_idx = 0
