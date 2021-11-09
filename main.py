@@ -39,6 +39,7 @@ def main(sys_argv: List[str] = None):
             args.train_dataloader_type = 'full_match'
         else:
             args.train_dataloader_type = 'match'
+        args.trainer_type = 'match'
         
     else:
         raise NotImplementedError
@@ -86,7 +87,8 @@ def main(sys_argv: List[str] = None):
                            val_dataloader, 
                            test_dataloader, 
                            model)
-    trainer.train()
+    #trainer.train()
+    trainer.test_win_rate()
     
 if __name__ == "__main__":
     main()

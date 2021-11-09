@@ -53,4 +53,5 @@ hidden_units: 128
 num_blocks: 2
 head_type: dot
 num_heads: 1
-num_hidden_layers: 2
+num_hidden_layers: null
+min_prob: null

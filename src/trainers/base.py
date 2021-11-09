@@ -1,13 +1,17 @@
 from ..common.logger import LoggerService, AverageMeterSet
+from ..common.metrics import *
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 
 from abc import *
 from pathlib import Path
 from tqdm import tqdm
+import numpy as np
 import pandas as pd
 import os
+import copy
 
 
 class BaseTrainer(metaclass=ABCMeta):
@@ -164,3 +168,59 @@ class BaseTrainer(metaclass=ABCMeta):
         log_data.update(average_meter_set.averages())
 
         return log_data
+
+    def test_win_rate(self):
+        args = self.args
+        average_meter_set = AverageMeterSet()
+        best_model_state = torch.load('./model/eval_model.pth')['model_state_dict']
+        self.model.load(best_model_state, self.use_parallel)
+        self.model.eval()
+        with torch.no_grad():
+            for batch in tqdm(self.test_loader):
+                batch = {k:v.to(self.device) for k, v in batch.items()}
+                B, T = batch['champions'].shape
+                C = self.args.num_champions
+                # get pi
+                pi, _ = self.model(batch)
+                pi = F.softmax(pi)
+                
+                # get q-value
+                turn_idx = copy.deepcopy(batch['turn'])
+                turn_idx[turn_idx > T] = 1
+                turn_idx = turn_idx - 1
+                q_value = torch.zeros((B, C), device=self.args.device)
+                batch['champion_masks'][torch.arange(512), turn_idx.squeeze()] = 0
+                for champion in range(C):
+                    batch['champions'][torch.arange(512), turn_idx.squeeze()] = champion
+                    _, v = self.model(batch)
+                    v = F.sigmoid(v).squeeze()
+                    # value must be reverted based on the team
+                    cur_team = batch['teams'][torch.arange(512), turn_idx.squeeze()] - 4
+                    v = (1-cur_team) * v + cur_team * (1-v)
+                    q_value[:, champion] = v
+                
+                tau = 0.02
+                rec_p = pi
+                rec_v = F.softmax(q_value)
+                rec_pv = F.softmax(q_value * (rec_p >= tau))
+                
+                rec_p = rec_p.cpu().numpy()
+                rec_v = rec_v.cpu().numpy()
+                rec_pv = rec_pv.cpu().numpy()
+                
+                pi_true = batch['target_champion'].cpu().numpy()
+                pi_true = np.eye(args.num_champions)[pi_true].squeeze(1)
+                is_draft_finished = batch['is_draft_finished'].cpu().numpy().flatten()
+        
+                rec_p = rec_p[~is_draft_finished]
+                rec_v = rec_v[~is_draft_finished]
+                rec_pv = rec_pv[~is_draft_finished]
+                pi_true = pi_true[~is_draft_finished]
+        
+                pi_rec_metrics = get_recommendation_metrics_for_ks(rec_p, pi_true, args.metric_ks)
+                v_rec_metrics = get_recommendation_metrics_for_ks(rec_v, pi_true, args.metric_ks)
+                piv_rec_metrics = get_recommendation_metrics_for_ks(rec_pv, pi_true, args.metric_ks)
+                
+                import pdb
+                pdb.set_trace()
+                
