@@ -171,10 +171,14 @@ class BaseTrainer(metaclass=ABCMeta):
 
     def test_win_rate(self):
         args = self.args
-        average_meter_set = AverageMeterSet()
+        pi_average_meter_set = AverageMeterSet()
+        v_average_meter_set = AverageMeterSet()
+        piv_average_meter_set = AverageMeterSet()
         best_model_state = torch.load('./model/eval_model.pth')['model_state_dict']
         self.model.load(best_model_state, self.use_parallel)
         self.model.eval()
+        pi_list = []
+        q_list = []
         with torch.no_grad():
             for batch in tqdm(self.test_loader):
                 batch = {k:v.to(self.device) for k, v in batch.items()}
@@ -189,13 +193,13 @@ class BaseTrainer(metaclass=ABCMeta):
                 turn_idx[turn_idx > T] = 1
                 turn_idx = turn_idx - 1
                 q_value = torch.zeros((B, C), device=self.args.device)
-                batch['champion_masks'][torch.arange(512), turn_idx.squeeze()] = 0
+                batch['champion_masks'][torch.arange(B), turn_idx.squeeze()] = 0
                 for champion in range(C):
-                    batch['champions'][torch.arange(512), turn_idx.squeeze()] = champion
+                    batch['champions'][torch.arange(B), turn_idx.squeeze()] = champion
                     _, v = self.model(batch)
                     v = F.sigmoid(v).squeeze()
                     # value must be reverted based on the team
-                    cur_team = batch['teams'][torch.arange(512), turn_idx.squeeze()] - 4
+                    cur_team = batch['teams'][torch.arange(B), turn_idx.squeeze()] - 4
                     v = (1-cur_team) * v + cur_team * (1-v)
                     q_value[:, champion] = v
                 
@@ -221,6 +225,75 @@ class BaseTrainer(metaclass=ABCMeta):
                 v_rec_metrics = get_recommendation_metrics_for_ks(rec_v, pi_true, args.metric_ks)
                 piv_rec_metrics = get_recommendation_metrics_for_ks(rec_pv, pi_true, args.metric_ks)
                 
-                import pdb
-                pdb.set_trace()
+                for k, v in pi_rec_metrics.items():
+                    pi_average_meter_set.update(k, v[0], n=v[1])
+                for k, v in v_rec_metrics.items():
+                    v_average_meter_set.update(k, v[0], n=v[1])
+                for k, v in piv_rec_metrics.items():
+                    piv_average_meter_set.update(k, v[0], n=v[1])
+                
+                pi = pi.cpu().numpy()
+                q_value = q_value.cpu().numpy()
+                pi_list.append(np.mean(pi, 0))
+                q_list.append(np.mean(q_value,0))
+v
+        pi_list = np.mean(np.hstack(pi_list).reshape(-1, C), 0)
+        q_list = np.mean(np.hstack(q_list).reshape(-1, C), 0)
+        calib_df = pd.DataFrame(columns=['pi', 'q'])
+        calib_df['pi'] = pi_list
+        calib_df['q'] = q_list
+        calib_df.to_csv('calib.csv')
+                
+        """
+        pi_list = []
+        q_list = []
+        label_list = []
+        with torch.no_grad():
+            for batch in tqdm(self.test_loader):
+                batch = {k:v.to(self.device) for k, v in batch.items()}
+                B, T = batch['champions'].shape
+                C = self.args.num_champions
+                # get pi
+                pi, v = self.model(batch)
+                pi = F.softmax(pi)
+                
+                cur_pi = torch.gather(pi, 1, batch['target_champion']).squeeze()
+                turn_idx = copy.deepcopy(batch['turn'])
+                turn_idx[turn_idx > T] = 1
+                turn_idx = turn_idx - 1
+                batch['champion_masks'][torch.arange(B), turn_idx.squeeze()] = 0
+                _, cur_q = self.model(batch)
+                cur_q = F.sigmoid(cur_q).squeeze()
+                label = batch['outcome'].squeeze()
+                
+                is_draft_finished = batch['is_draft_finished'].squeeze()
+                cur_pi = cur_pi[~is_draft_finished]  
+                cur_q = cur_q[~is_draft_finished]
+                label = label[~is_draft_finished]
+                # turn_idx = copy.deepcopy(batch['turn'])
+                # turn_idx[turn_idx > T] = 1
+                # turn_idx = turn_idx - 1
+                # team = batch['teams'][torch.arange(B), turn_idx.squeeze()] - 4
+                # next_team = team[1:]
+                # (cur_team, next_team)
+                # (blue, blue): q
+                # (blue, purple): q
+                # (purple, blue): (1-q)
+                # (purple, purple): (1-q)
+                # cur_q = (1-next_team) * cur_q + next_team * (1-cur_q)
+                
+                pi_list.append(cur_pi.cpu().numpy())
+                q_list.append(cur_q.cpu().numpy())
+                label_list.append(label.cpu().numpy())
+        
+        pi_list = np.hstack(pi_list).flatten()
+        q_list = np.hstack(q_list).flatten()
+        label_list = np.hstack(label_list).flatten()
+        
+        calib_df = pd.DataFrame(columns=['pi', 'q', 'label'])
+        calib_df['pi'] = pi_list
+        calib_df['q'] = q_list
+        calib_df['label'] = label_list
+        calib_df.to_csv('calib.csv')
+        """
                 
