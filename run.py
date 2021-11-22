@@ -15,31 +15,25 @@ def run_experiment(experiment):
 
 
 if __name__ == '__main__':
-    default = {'--exp_name': '1029_tune_optmatch_lol'}
+    default = {'--exp_name': 'test_nn'}
 
     seeds = ['0']
-    temps = ['optmatch_lol']
-    lrs = ['0.001']
-    wds = ['0.0001']
-    hus = ['32', '64']
+    temps = ['nn_lol', 'nn_dota']
+    lrs = ['0.01', '0.001', '0.0001']
     
-    num_devices = 2
-    num_exp_per_device = 1
+    num_devices = 4
+    num_exp_per_device = 2
     pool_size = num_devices * num_exp_per_device
 
     experiments = []
     device = 0
-    for seed, temp, lr, wd, hu in itertools.product(*[seeds, temps, lrs, wds, hus]):
+    for seed, temp, lr in itertools.product(*[seeds, temps, lrs]):
         exp = copy.deepcopy(default)       
         exp['--seed'] = seed
         exp['--template'] = temp
         exp['--lr'] = lr
-        exp['--weight_decay'] = wd
-        exp['--hidden_units'] = hu
         
         device_idx = device % num_devices
-        if device_idx == 1:
-            device_idx = 2
         exp['--device'] = 'cuda:' + str(int(device_idx))
         
         experiments.append(exp)

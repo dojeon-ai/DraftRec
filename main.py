@@ -34,7 +34,7 @@ def main(sys_argv: List[str] = None):
         elif args.model_type in ['spop']:
             args.trainer_type = 'spop'
 
-    elif args.model_type in ['sasrec', 'sasrec_moba', 'lr', 'hoi', 'nac', 'optmatch', 'draftrec']:
+    elif args.model_type in ['sasrec', 'sasrec_moba', 'lr', 'nn', 'hoi', 'nac', 'optmatch', 'draftrec']:
         if args.use_full_info:
             args.train_dataloader_type = 'full_match'
         else:
@@ -87,8 +87,8 @@ def main(sys_argv: List[str] = None):
                            val_dataloader, 
                            test_dataloader, 
                            model)
-    #trainer.train()
-    trainer.test_win_rate()
+    trainer.train()
+    #trainer.test_win_rate()
     
 if __name__ == "__main__":
     main()

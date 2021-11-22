@@ -4,8 +4,8 @@ pilot: false
 local_data_folder: ./data
 wandb_project_name: draftrec
 exp_name: 10_25
-dataset_type: lol
-model_type: draftrec
+dataset_type: dota
+model_type: nn
 # dataloader
 use_full_info: false
 train_dataloader_type: null
@@ -14,7 +14,7 @@ test_dataloader_type: null
 train_batch_size: 512
 val_batch_size: 512
 test_batch_size: 512
-max_seq_len: 50
+max_seq_len: 1
 num_special_tokens: 4
 num_turns: 10
 num_champions: null
@@ -33,13 +33,13 @@ num_workers: 16  # larger number of workers induce higher i/o bottleneck
 # optimizer
 optimizer: adam
 lr: 0.001
-weight_decay: 0.00001
+weight_decay: 0.0001
 momentum: null
-lmbda: 0.1
+lmbda: 0.05
 clip_grad_norm: 5.0
-dropout: 0.1
+dropout: 0.2
 # epochs
-num_epochs: 10
+num_epochs: 20
 # evaluation
 metric_ks:
 - 1
@@ -49,8 +49,8 @@ metric_ks:
 best_metric: ACC
 # model
 model_init_seed: 0
-hidden_units: 64
-num_blocks: 2
+hidden_units: 128
+num_blocks: 1
 head_type: dot
 num_heads: 1
 num_hidden_layers: null

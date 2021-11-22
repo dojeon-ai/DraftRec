@@ -5,7 +5,7 @@ local_data_folder: ./data
 wandb_project_name: draftrec
 exp_name: 10_25
 dataset_type: lol
-model_type: draftrec
+model_type: spop
 # dataloader
 use_full_info: false
 train_dataloader_type: null
@@ -33,9 +33,9 @@ num_workers: 16  # larger number of workers induce higher i/o bottleneck
 # optimizer
 optimizer: adam
 lr: 0.001
-weight_decay: 0.00001
+weight_decay: 0.0001
 momentum: null
-lmbda: 0.1
+lmbda: 1.0
 clip_grad_norm: 5.0
 dropout: 0.1
 # epochs
@@ -46,11 +46,11 @@ metric_ks:
 - 5
 - 10
 - 20
-best_metric: ACC
+best_metric: HR@1
 # model
 model_init_seed: 0
-hidden_units: 64
-num_blocks: 2
+hidden_units: 128
+num_blocks: 1
 head_type: dot
 num_heads: 1
 num_hidden_layers: null

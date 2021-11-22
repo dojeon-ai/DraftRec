@@ -57,7 +57,7 @@ class Parser:
         parser.add_argument('--exp_name', type=str, help='experiment name to identify')
         parser.add_argument('--dataset_type', type=str, choices=['lol','dota'], help='select the dataset to use for the experiment')
         parser.add_argument('--model_type', type=str, choices=['pop', 'nmf', 'dmf', 
-                                                               'spop', 'sasrec', 'lr', 'hoi', 'nac', 'optmatch','draftrec'], help='Selects the model for the experiment')
+                                                               'spop', 'sasrec', 'lr', 'nn', 'hoi', 'nac', 'optmatch','draftrec'], help='Selects the model for the experiment')
         args = parser.parse_known_args(self.sys_argv)[0]
         return vars(args)
 

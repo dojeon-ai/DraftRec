@@ -5,7 +5,7 @@ local_data_folder: ./data
 wandb_project_name: draftrec
 exp_name: 10_25
 dataset_type: lol
-model_type: draftrec
+model_type: nn
 # dataloader
 use_full_info: false
 train_dataloader_type: null
@@ -14,7 +14,7 @@ test_dataloader_type: null
 train_batch_size: 512
 val_batch_size: 512
 test_batch_size: 512
-max_seq_len: 50
+max_seq_len: 1
 num_special_tokens: 4
 num_turns: 10
 num_champions: null

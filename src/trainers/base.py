@@ -236,7 +236,7 @@ class BaseTrainer(metaclass=ABCMeta):
                 q_value = q_value.cpu().numpy()
                 pi_list.append(np.mean(pi, 0))
                 q_list.append(np.mean(q_value,0))
-v
+
         pi_list = np.mean(np.hstack(pi_list).reshape(-1, C), 0)
         q_list = np.mean(np.hstack(q_list).reshape(-1, C), 0)
         calib_df = pd.DataFrame(columns=['pi', 'q'])
