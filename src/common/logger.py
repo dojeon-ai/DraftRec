@@ -13,7 +13,7 @@ class LoggerService(object):
         exp_name = args.exp_name
         
         assert project_name is not None and exp_name is not None
-        wandb.init(project=project_name, config=args)        
+        wandb.init(project=project_name, config=args, settings=wandb.Settings(start_method="fork"))        
         self.model_path = wandb.run.dir + '/model.pth'
         self.config_path = wandb.run.dir + '/config.json'
         with open(self.config_path, 'w') as f:

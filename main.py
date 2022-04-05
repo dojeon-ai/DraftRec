@@ -2,14 +2,16 @@ import argparse
 import os
 import sys
 import warnings
-import pickle
+import json
 import tqdm
 import numpy as np
+import pandas as pd
 from dotmap import DotMap
 from typing import List
 from multiprocessing import Manager
 
 from arguments import Parser
+from src.common.data_utils import *
 from src.dataloaders import init_dataloader
 from src.models import init_model
 from src.trainers import init_trainer
@@ -24,63 +26,41 @@ def main(sys_argv: List[str] = None):
         sys_argv = sys.argv[1:]
     configs = Parser(sys_argv).parse()
     args = DotMap(configs, _dynamic=False)
-    # Registry
-    if args.model_type in ['random', 'spop', 'pop', 'nmf', 'dmf']:
-        args.train_dataloader_type = 'interaction'
-        if args.model_type in ['nmf', 'dmf']:
-            args.trainer_type = 'interaction'
-        elif args.model_type in ['random', 'pop']:
-            args.trainer_type = 'pop'
-        elif args.model_type in ['spop']:
-            args.trainer_type = 'spop'
-
-    elif args.model_type in ['sasrec', 'sasrec_moba', 'lr', 'nn', 'hoi', 'nac', 'optmatch', 'draftrec']:
-        if args.use_full_info:
-            args.train_dataloader_type = 'full_match'
-        else:
-            args.train_dataloader_type = 'match'
-        args.trainer_type = 'match'
-        
-    else:
-        raise NotImplementedError
-        
-    args.val_dataloader_type = 'match'
-    args.test_dataloader_type = 'match'
         
     # Dataset
     print('[Start loading the dataset]')
     dataset_path = args.local_data_folder + '/' + args.dataset_type
-    with open(dataset_path + '/match_df.pickle', 'rb') as f:
-        match_df = pickle.load(f)
-    with open(dataset_path + '/categorical_ids.pickle', 'rb') as f:
-        categorical_ids = pickle.load(f)
-    with open(dataset_path + '/feature_to_array_idx.pickle', 'rb') as f:
-        feature_to_array_idx = pickle.load(f)
-    with open(dataset_path + '/user_id_to_array_idx.pickle', 'rb') as f:
-        user_id_to_array_idx = pickle.load(f)
-    user_history_array = np.load(dataset_path + '/user_history_array.npy')
+
+    match_df = {}
+    match_df['train'] = pd.read_csv(dataset_path + '/train.csv', index_col=0)
+    match_df['val'] =  pd.read_csv(dataset_path + '/val.csv', index_col=0)
+    match_df['test'] =  pd.read_csv(dataset_path + '/test.csv', index_col=0)
+
+    user_history_array = np.load(dataset_path + '/user_history.npy', mmap_mode='r+')
+    # Load data in memory if your memory (>30Gb)
+    # user_history_array = read_large_array(dataset_path + '/user_history.npy')
+
+    with open(dataset_path + '/categorical_ids.json', 'r') as f:
+        categorical_ids = json.load(f)
+    with open(dataset_path + '/feature_to_array_idx.json', 'r') as f:
+        feature_to_array_idx = json.load(f)
+
     print('[Finish loading the dataset]')
-    
-    # TODO: remove this with categorical ids
     args.num_champions = len(categorical_ids['champion'])
     args.num_roles = len(categorical_ids['role'])
     args.num_teams = len(categorical_ids['team'])
     args.num_outcomes = len(categorical_ids['win'])
-    if args.dataset_type == 'lol':
-        args.num_stats = 43    
-    elif args.dataset_type == 'dota':
-        args.num_stats = 26
+    args.num_stats = len(categorical_ids['stats'])
 
     # DataLoader
     train_dataloader, val_dataloader, test_dataloader = init_dataloader(args, 
                                                                         match_df, 
                                                                         user_history_array, 
-                                                                        user_id_to_array_idx, 
                                                                         feature_to_array_idx)
 
     # Model
     model = init_model(args)
-    
+
     # Trainer
     trainer = init_trainer(args, 
                            train_dataloader, 
@@ -88,7 +68,6 @@ def main(sys_argv: List[str] = None):
                            test_dataloader, 
                            model)
     trainer.train()
-    #trainer.test_win_rate()
     
 if __name__ == "__main__":
     main()

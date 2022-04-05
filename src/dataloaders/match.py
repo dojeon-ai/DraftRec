@@ -78,16 +78,15 @@ class MatchDataset(torch.utils.data.Dataset):
         user_stats = np.zeros((T, S, ST))
         
         for t in range(1, self.num_turns+1):
-            user_id, user_history_idx = match['User' + str(t)]
+            user_id, user_history_idx = eval(match['User' + str(t)])
             
             # match-level input
 
             champion = self.user_history_dict.get_value(user_id, user_history_idx, 'champion')
             role = self.user_history_dict.get_value(user_id, user_history_idx, 'role')
             team = self.user_history_dict.get_value(user_id, user_history_idx, 'team')
-            arr_user_id = self.user_history_dict.user_id_to_array_idx[user_id]
             
-            user_ids[t-1] = arr_user_id
+            user_ids[t-1] = user_id
             champions[t-1] = champion
             roles[t-1] = role
             teams[t-1] = team

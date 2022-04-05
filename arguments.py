@@ -56,15 +56,13 @@ class Parser:
         parser.add_argument('--wandb_project_name', type=str, help='Project name for wandb')
         parser.add_argument('--exp_name', type=str, help='experiment name to identify')
         parser.add_argument('--dataset_type', type=str, choices=['lol','dota'], help='select the dataset to use for the experiment')
-        parser.add_argument('--model_type', type=str, choices=['pop', 'nmf', 'dmf', 
-                                                               'spop', 'sasrec', 'lr', 'nn', 'hoi', 'nac', 'optmatch','draftrec'], help='Selects the model for the experiment')
+        parser.add_argument('--model_type', type=str, choices=[ 'lr', 'nn', 'draftrec'], help='Selects the model for the experiment')
         args = parser.parse_known_args(self.sys_argv)[0]
         return vars(args)
 
     def parse_dataloader(self):
         parser = argparse.ArgumentParser(allow_abbrev=False)
-        parser.add_argument('--use_full_info', type=str2bool)
-        parser.add_argument('--train_dataloader_type', type=str, choices=['interaction', 'sequential', 'full_match', 'match'], help='Selects the trainer for the experiment')
+        parser.add_argument('--train_dataloader_type', type=str, choices=['match'], help='Selects the trainer for the experiment')
         parser.add_argument('--val_dataloader_type', type=str, choices=['match'], help='Selects the trainer for the experiment')
         parser.add_argument('--test_dataloader_type', type=str, choices=['match'], help='Selects the trainer for the experiment')
         parser.add_argument('--train_batch_size', type=int, help='Batch size for training')

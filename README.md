@@ -1,7 +1,11 @@
-## DraftRec: Personalized Draft Recommendation for Victory in Multi-Player Online Battle Arena Game (WWW 2022): Official Project Webpage
-This repository provides the official PyTorch implementation of the following paper:
-> DraftRec: Personalized Draft Recommendation for Victory in Multi-Player Online Battle Arena Game <br>
-> Hojoon Lee* (KAIST AI), Dongyoon Hwang* (KAIST AI), Hyunseung Kim (KAIST AI), Byungkun Lee (KAIST AI), and Jaegul Choo (KAIST AI),<br>
+## DraftRec: Personalized Draft Recommendation for Winning in Multi-Player Online Battle Arena Game (WWW' 2022): Official Project Webpage
+This repository provides the official PyTorch implementation of the corresponding paper: [DraftRec](link)
+
+> Authors: Hojoon Lee*, Dongyoon Hwang*, Hyunseung Kim, Byungkun Lee, and Jaegul Choo,<br>
+> Affiliation: KAIST AI
+
+![](./assets/draftrec_model.png)
+
 
 > **Abstract:** 
 This paper presents a personalized character recommendation system for Multiplayer Online Battle Arena (MOBA) games which are considered as one of the most popular online video game genres around the world. 
@@ -15,4 +19,61 @@ We train and evaluate our model from a manually collected 280,000 matches of *Le
 Empirically, our method achieved state-of-the-art performance in character recommendation and match outcome prediction task. 
 Furthermore, a comprehensive user survey confirms that DraftRec provides convincing and satisfying recommendations.
 
-Instructions for HOW TO USE will be released soon!!!
+## Dataset
+
+[user_history_data (~16gb)](https://davian-lab.quickconnect.to/d/s/o9mpSh3FqCKvOVvkEO5NauhID5OGhRc7/uyXjCG-PHwyJv17OSlAsZSUIzTjg50xt-tbBgS4dDbAk)
+
+![](./assets/dataset.png)
+
+Write brief dataset description (dy)
+Write you can find the detail in jupyter blah blah.
+
+## Model checkpoints for the trained models
+
+The pre-trained models can be found below. 
+
+|                             Model checkpoint                             |      ACC        |     HR@10    | 
+|--------------------------------------------------------------------------|-----------------|--------------|
+|[DraftRec (hidden_dim=64, seq_len=10)](link1)                             |      -          |              |
+|[DraftRec (hidden_dim=64, seq_len=50)](link2)                             |      55.1       |     86.8     |
+|[DraftRec (hidden_dim=128, seq_len=10)](link3)                            |      -          |              |
+|[DraftRec (hidden_dim=128, seq_len=50)](link4)                            |      -          |              |
+
+## Environment setup
+
+Our code can run on a *single* GPU or on *multi*-GPUs.
+See requirements.txt for all prerequisites, and you can also install them using the following command.
+
+```
+pip install -r requirements.txt
+```
+
+## Training
+
+To train the draftrec model with a *single* GPU, try the following command:
+
+```
+python main.py --template draftrec --dataset_path [DATASET_PATH]
+```
+
+To train the draftrec model with *multiple* GPUs, try the following command:
+
+```
+python main.py --template draftrec --dataset_path [DATASET_PATH] --use_parallel true
+```
+
+## Cite
+
+```
+@article{lee2022draftrec,
+  title={DraftRec: Personalized Draft Recommendation for Winning in Multi-Player Online Battle Arena Games},
+  author={Hojoon Lee and Dongyoon Hwang and Hyunseung Kim and Byungkun Lee and Jaegul Choo},
+  booktitle = {Proceedings of the Web Conference 2022},
+  series = {WWW '22},
+  year={2022}
+}
+```
+
+## Disclaimer
+
+This is not an official Riot Games product.
