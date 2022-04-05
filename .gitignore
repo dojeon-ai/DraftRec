@@ -110,7 +110,7 @@ fabric.properties
 
 # Data
 *.pickle
-*.csv
+# *.csv
 wandb/**
 __pycache__
 *.pyc
