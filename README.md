@@ -34,10 +34,10 @@ The pre-trained models can be found below.
 
 |                             Model checkpoint                             |      ACC        |     HR@10    | 
 |--------------------------------------------------------------------------|-----------------|--------------|
-|[DraftRec (hidden_dim=64, seq_len=10)](link1)                             |      -          |              |
-|[DraftRec (hidden_dim=64, seq_len=50)](link2)                             |      55.1       |     86.8     |
-|[DraftRec (hidden_dim=128, seq_len=10)](link3)                            |      -          |              |
-|[DraftRec (hidden_dim=128, seq_len=50)](link4)                            |      -          |              |
+|[DraftRec (hidden_dim=64, seq_len=10)](link1)                             |      54.6       |     88.0     |
+|[DraftRec (hidden_dim=64, seq_len=50)](link2)                             |      55.2       |     89.9     |
+|[DraftRec (hidden_dim=128, seq_len=10)](link3)                            |      54.8       |     88.7     |
+|[DraftRec (hidden_dim=128, seq_len=50)](link4)                            |      55.0       |     89.8     |
 
 ## Environment setup
 
