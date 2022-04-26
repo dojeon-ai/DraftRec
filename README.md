@@ -1,5 +1,5 @@
 ## DraftRec: Personalized Draft Recommendation for Winning in Multi-Player Online Battle Arena Game (WWW' 2022): Official Project Webpage
-This repository provides the official PyTorch implementation of the corresponding paper: [DraftRec](https://github.com/dojeon-ai/DraftRec/tree/master/assets)
+This repository provides the official PyTorch implementation of the corresponding paper: [DraftRec](link)
 
 > Authors: Hojoon Lee*, Dongyoon Hwang*, Hyunseung Kim, Byungkun Lee, and Jaegul Choo,<br>
 > Affiliation: KAIST AI
