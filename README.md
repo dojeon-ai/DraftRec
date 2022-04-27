@@ -33,7 +33,7 @@ Our dataset is mainly divided into two files : the **match dataset** (e.g., trai
   * (ii) history_index : Information about the respective match history index respective to the user's personal match history. 
   * Example : As shown in the figure above, for match_id =2 , the user_id and his/her respective match history index for user9 (the 9th user who selects a champion in the match) is (5,31). Thus, the 9th user who selected a champion in match_id =2 has user_id=5 and match_id=2 is recorded as the 31st match within user_id=5's match history. 
 * **User history data** : The user history data contains detailed information regarding each match within the user's personal match history. It includes information about the champion selected by the user, designated role and team, banned champions in the match, information about whether the user won or lost the match, and specific personal match performance statistics (e.g., total gold earned, total damage, etc). 
-  * Data structure : The user_history_array is formed  
+  * Data structure : The user_history_array is formed as a tensor with shape (number of users) x (number of features) x (max user history length). There are a total of 62,466 users, 57 different type of features (detailed information regarding the semantic of the features can be found in /data/lol/categorical_ids.json) , and the max user history length is 1145.
 
 More detailed descriptions considering the dataset statistics are provided in /data/EDA.ipynb.
 
