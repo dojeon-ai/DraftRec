@@ -25,13 +25,16 @@ Furthermore, a comprehensive user survey confirms that DraftRec provides convinc
 
 ![](./assets/dataset.png)
 
-Here we provide a detailed description about our manually constructed League of Legends dataset, which was collected by utilizing the publicly accessible API endpoint provided by Riot Games (https://developer.riotgames.com/). Our League of Legends dataset is composed of 279,893 top 0.1% ranked players' matches. In order to guarantee the quality of our dataset, we strictly restricted the tier (i.e.g, rank) of the players to Challenger, GrandMaster, Master, Diamond-1, and Diamond-2 ranked players. 
+Here we provide a detailed description about our manually constructed League of Legends dataset, which was collected by utilizing the publicly accessible API endpoint provided by Riot Games (https://developer.riotgames.com/). Our League of Legends dataset is composed of 279,893 top 0.1% ranked players' matches. In order to guarantee the quality of our dataset, we strictly restricted the tier (i.e., rank) of the players to Challenger, GrandMaster, Master, Diamond-1, and Diamond-2 ranked players. 
 
-Our dataset is mainly divided into two files : the match dataset (e.g., train.csv, val.csv, test.csv) and the user history dataset (e.g., user history array). The match dataset contains information regarding the participating users for each match and the user history dataset contains  
-> Match dataset: Each row in the match dataset file indicates a separate match in the dataset. Within each row, each column includes information about which user has participated in that particular match and . 
-> User history data : The user history data contains detailed information about each user's 
+Our dataset is mainly divided into two files : the **match dataset** (e.g., train.csv, val.csv, test.csv) and the **user history dataset** (e.g., user history array). The match dataset contains information regarding the userID and the match history index respective to the user's personal match history. The user history dataset contains detailed information about each user's past matches. 
+* **Match dataset**: Each row in the match dataset (i.e., match_id) indicates a separate match in the dataset. Each column in the match dataset (i.e., user1, user2, ..., user10) is listed according to the champion selection order. For example, user1 indicates the 1st user who selects a champion and user9 indicates the 9th user who selects a champion. Furthermore, each column includes the (i) user_id information and the (ii) history_index information. 
+  * (i) user_id : Information about which user has participated in that particular match. 
+  * (ii) history_index : Information about the respective match history index respective to the user's personal match history. 
+  * Example : As shown in the figure above, for match_id =2 , the user_id and his/her respective match history index for user9 (the 9th user who selects a champion in the match) is (5,31). Thus, the 9th user who selected a champion in match_id =2 has user_id=5 and match_id=2 is recorded as the 31st match within user_id=5's match history. 
+* **User history data** : The user history data contains detailed information regarding each match within the user's personal match history. It includes information about the champion selected by the user, designated role and team, banned champions in the match, information about whether the user won or lost the match, and specific personal match performance statistics (e.g., total gold earned, total damage, etc). 
+  * Data structure : The user_history_array is formed  
 
-specific information about which user  of matchesAs shown in the figure above, a single row in t
 More detailed descriptions considering the dataset statistics are provided in /data/EDA.ipynb.
 
 ## Model checkpoints for the trained models
