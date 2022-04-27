@@ -86,7 +86,7 @@ class BaseTrainer(metaclass=ABCMeta):
         val_log_data = self.validate(mode='val')
         val_log_data['epoch'] = 0
         self.logger.log_val(val_log_data)
-
+        
         for epoch in range(1, self.num_epochs+1):
             # train
             train_log_data = self.train_one_epoch()
@@ -110,7 +110,10 @@ class BaseTrainer(metaclass=ABCMeta):
         
         # test with the best_model
         best_model_state = self.logger.load_state_dict()['model_state_dict']
-        self.model.load(best_model_state, self.use_parallel)
+        if self.use_parallel:
+            self.model.module.load_state_dict(best_model_state)
+        else:
+            self.model.load_state_dict(best_model_state)
         test_log_data = self.validate(mode='test')
         self.logger.log_test(test_log_data)
 
