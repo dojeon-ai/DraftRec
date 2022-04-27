@@ -25,8 +25,14 @@ Furthermore, a comprehensive user survey confirms that DraftRec provides convinc
 
 ![](./assets/dataset.png)
 
-Write brief dataset description (dy)
-Write you can find the detail in jupyter blah blah.
+Here we provide a detailed description about our manually constructed League of Legends dataset, which was collected by utilizing the publicly accessible API endpoint provided by Riot Games (https://developer.riotgames.com/). Our League of Legends dataset is composed of 279,893 top 0.1% ranked players' matches. In order to guarantee the quality of our dataset, we strictly restricted the tier (i.e.g, rank) of the players to Challenger, GrandMaster, Master, Diamond-1, and Diamond-2 ranked players. 
+
+Our dataset is mainly divided into two files : the match dataset (e.g., train.csv, val.csv, test.csv) and the user history dataset (e.g., user history array). The match dataset contains information regarding the participating users for each match and the user history dataset contains  
+> Match dataset: Each row in the match dataset file indicates a separate match in the dataset. Within each row, each column includes information about which user has participated in that particular match and . 
+> User history data : The user history data contains detailed information about each user's 
+
+specific information about which user  of matchesAs shown in the figure above, a single row in t
+More detailed descriptions considering the dataset statistics are provided in /data/EDA.ipynb.
 
 ## Model checkpoints for the trained models
 
