@@ -49,6 +49,7 @@ The pre-trained models can be found below.
 |[DraftRec (hidden_dim=128, seq_len=10)](link3)                            |      54.8       |     88.7     |
 |[DraftRec (hidden_dim=128, seq_len=50)](link4)                            |      55.0       |     89.8     |
 
+As for the difference in the performance of the model against are proposed paper, while preparing to publish our code, we discovered that some matches within the dataset were preprocessed incorrectly. After modifying the incorrectly preprocessed matches, we discovered a minor decrease in match outcome accuracy. However, we were able to observe that we were able to increase the HR@10 score. 
 ## Environment setup
 
 Our code can run on a *single* GPU or on *multi*-GPUs.
