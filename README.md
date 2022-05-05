@@ -22,7 +22,7 @@ Furthermore, a comprehensive user survey confirms that DraftRec provides convinc
 
 ## Dataset
 
-[user_history_data (~16gb)](https://davian-lab.quickconnect.to/d/s/o9mpSh3FqCKvOVvkEO5NauhID5OGhRc7/uyXjCG-PHwyJv17OSlAsZSUIzTjg50xt-tbBgS4dDbAk)
+[user_history_data (~16gb)](https://drive.google.com/file/d/1km--Hmawldbi5mrw6dGeXzJQPttfXJTE/view?usp=sharing)
 
 ![](./assets/dataset.png)
 
