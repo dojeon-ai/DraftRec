@@ -43,11 +43,11 @@ More detailed descriptions considering the dataset statistics are provided in [E
 The pre-trained models can be found below. 
 
 |                             Model checkpoint                             |      ACC        |     HR@10    | 
-|--------------------------------------------------------------------------|-----------------|--------------|
-|[DraftRec (hidden_dim=64, seq_len=10)]([link1](https://drive.google.com/drive/folders/1kEOss__o-DhSHX6y3hVz5kFkjhVpb9tT?usp=sharing))                             |      54.6       |     88.0     |
-|[DraftRec (hidden_dim=64, seq_len=50)]([link2](https://drive.google.com/drive/folders/1yR81p_nSLZQ-PTBsHgdUufEjIMjVFUm4?usp=sharing))                             |      55.2       |     89.9     |
-|[DraftRec (hidden_dim=128, seq_len=10)]([link3](https://drive.google.com/drive/folders/1h_T7AhtYFiKkwOA6u5-c1MlNgp3vx6tv?usp=sharing))                            |      54.8       |     88.7     |
-|[DraftRec (hidden_dim=128, seq_len=50)]([link4](https://drive.google.com/drive/folders/1WZc9hGi7Mhp2m83g3cFELv1ePp67moX6?usp=sharing))                            |      55.0       |     89.8     |
+|--------------------------------------------------------------------------|-----------------|--------------
+|[DraftRec (hidden_dim=64, seq_len=10)](https://drive.google.com/drive/folders/1kEOss__o-DhSHX6y3hVz5kFkjhVpb9tT?usp=sharing)                             |      54.6       |     88.0     |
+|[DraftRec (hidden_dim=64, seq_len=50)](https://drive.google.com/drive/folders/1yR81p_nSLZQ-PTBsHgdUufEjIMjVFUm4?usp=sharing)                            |      55.2       |     89.9     |
+|[DraftRec (hidden_dim=128, seq_len=10)](https://drive.google.com/drive/folders/1h_T7AhtYFiKkwOA6u5-c1MlNgp3vx6tv?usp=sharing)                            |      54.8       |     88.7     |
+|[DraftRec (hidden_dim=128, seq_len=50)](https://drive.google.com/drive/folders/1WZc9hGi7Mhp2m83g3cFELv1ePp67moX6?usp=sharing)                            |      55.0       |     89.8     |
 
 After investigating through the dataset to publish our code, we found that several matches within the dataset were preprocessed incorrectly. 
 Thus, we discovered a minor decreasement in accuracy and a minor increasement in HR@10 compared to the results of our paper.
